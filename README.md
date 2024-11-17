@@ -1,7 +1,7 @@
 
 
 # Signtool-Code-Signing
-[![build-test](https://github.com/GabrielAcostaEngler/signtool-code-sign/actions/workflows/test.yml/badge.svg)](https://github.com/GabrielAcostaEngler/signtool-code-sign/actions/workflows/test.yml)
+[![build-test](https://github.com/mscrivo/signtool-code-sign/actions/workflows/build.yml/badge.svg)](https://github.com/mscrivo/signtool-code-sign/actions/workflows/build.yml)
 
 
 This action will code sign files from the given folder, this can be done recursively if needed.  
