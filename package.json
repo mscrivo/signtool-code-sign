@@ -1,7 +1,7 @@
 {
-  "name": "typescript-action",
-  "version": "0.0.0",
-  "private": true,
+  "name": "windows-codesign-signtool",
+  "version": "1.1.0",
+  "private": false,
   "description": "Sign files with signtool.exe",
   "main": "lib/main.js",
   "scripts": {
@@ -14,13 +14,19 @@
     "all": "npm run build && npm run format && npm run lint && npm run package && npm test"
   },
   "repository": {
-    "type": "git",
-    "url": "git+https://github.com/GabrielAcostaEngler/signtool-code-sign.git"
+    "url": "https://github.com/mscrivo/signtool-code-sign"
   },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },  
   "keywords": [
     "actions",
     "node",
-    "setup"
+    "setup",
+    "signtool",
+    "windows",
+    "code-sign",
+    "publish"
   ],
   "author": "Gabriel Acosta",
   "license": "MIT",
