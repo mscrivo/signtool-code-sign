@@ -1,11 +1,10 @@
-
-
-# Signtool-Code-Signing
+# Windows Code Signing Github Action
 [![build-test](https://github.com/mscrivo/signtool-code-sign/actions/workflows/build.yml/badge.svg)](https://github.com/mscrivo/signtool-code-sign/actions/workflows/build.yml)
 
+Forked from: https://github.com/GabrielAcostaEngler/signtool-code-sign
 
 This action will code sign files from the given folder, this can be done recursively if needed.  
-The action uses a base64 encoded PFX certificate to sign files by adding the certificate to the store and then use signtool to do the code signing.  
+The action uses a base64 encoded PFX certificate to sign files by adding the certificate to the store and then use `signtool.exe` to do the code signing.  
 
 
 All inputs regarding the Certificate except `description` should be added via repository/organization secrets.
@@ -43,10 +42,10 @@ Thanks to [Dirk Lemstra](https://github.com/dlemstra/code-sign-action) for provi
 
 # Usage
 
-```
+```yaml
 runs-on: windows-latest
 steps:
-  uses: GabrielAcostaEngler/signtool-code-sign@main
+  uses: mscrivo/signtool-code-sign@main
   with:
     certificate: '${{ secrets.CERTIFICATE }}'
     cert-password: '${{ secrets.PASSWORD }}'
@@ -56,6 +55,7 @@ steps:
     recursive: true
     timestamp-server: 'http://timestamp.digicert.com'
 ```
+
 # License
 
 This project is released under the [MIT License](LICENSE)
