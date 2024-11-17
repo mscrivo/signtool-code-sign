@@ -52,7 +52,7 @@ Thanks to [Dirk Lemstra](https://github.com/dlemstra/code-sign-action) for provi
 ```yaml
 runs-on: windows-latest
 steps:
-  uses: mscrivo/signtool-code-sign@main
+  uses: mscrivo/signtool-code-sign@v1
   with:
     certificate: '${{ secrets.CERTIFICATE }}'
     cert-password: '${{ secrets.PASSWORD }}'
