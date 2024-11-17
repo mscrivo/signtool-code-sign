@@ -2,7 +2,7 @@ name: 'Windows Code Signing with signtool'
 description: 'Sign files with with a pfx certificate using signtool'
 author: 'Gabriel Acosta & Michael Scrivo'
 branding:
-  icon: 'code'
+  icon: 'lock'
   color: 'gray-dark'
 inputs:
   certificate:
