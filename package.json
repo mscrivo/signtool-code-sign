@@ -14,11 +14,11 @@
     "all": "npm run build && npm run format && npm run lint && npm run package && npm test"
   },
   "repository": {
-    "url": "https://github.com/mscrivo/signtool-code-sign"
+    "url": "git+https://github.com/mscrivo/signtool-code-sign.git"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
-  },  
+  },
   "keywords": [
     "actions",
     "node",
