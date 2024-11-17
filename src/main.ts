@@ -46,7 +46,7 @@ const supportedFileExt = [
  */
 function validateInputs(): boolean {
 	if (coreFolder.length === 0) {
-		core.error('foler input must have a value.')
+		core.error('folder input must have a value.')
 		return false
 	}
 
@@ -84,7 +84,7 @@ function wait(seconds: number): unknown {
 }
 
 /**
- * Create PFX Certification fiole  from base64 certification.
+ * Create PFX Certification file from base64 certification.
  *
  */
 async function createCert(): Promise<boolean> {
