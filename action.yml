@@ -1,6 +1,6 @@
-name: 'Signtool Code Sign'
+name: 'Windows Code Signing with signtool'
 description: 'Sign files with with a pfx certificate using signtool'
-author: 'Gabriel Acosta'
+author: 'Gabriel Acosta & Michael Scrivo'
 branding:
   icon: 'code'
   color: 'gray-dark'
