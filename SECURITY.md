@@ -11,4 +11,4 @@ currently being supported with security updates.
 
 ## Reporting a Vulnerability
 
-Mail: gabi.acosta.engler@gmail.com
+Please use Github's security vulnerability reporting function.
