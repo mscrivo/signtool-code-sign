@@ -28,7 +28,7 @@
     "code-sign",
     "publish"
   ],
-  "author": "Gabriel Acosta",
+  "author": "Michael Scrivo",
   "license": "MIT",
   "dependencies": {
     "@actions/core": "^1.11.1"
