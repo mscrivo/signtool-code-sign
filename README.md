@@ -2,14 +2,14 @@
 
 [![build-test](https://github.com/mscrivo/signtool-code-sign/actions/workflows/build.yml/badge.svg)](https://github.com/mscrivo/signtool-code-sign/actions/workflows/build.yml)
 
-Forked from: <https://github.com/GabrielAcostaEngler/signtool-code-sign>
+Forked from: <https://github.com/GabrielAcostaEngler/signtool-code-sign> but modernized and with updated dependencies.
 
 This action will code sign files from the given folder, this can be done recursively if needed.  
 The action uses a base64 encoded PFX certificate to sign files by adding the certificate to the store and then use `signtool.exe` to do the code signing.  
 
 All inputs regarding the Certificate except `description` should be added via repository/organization secrets.
 
-Thanks to [Dirk Lemstra](https://github.com/dlemstra/code-sign-action) for providing a base for me to create this action.
+Thanks to [Dirk Lemstra](https://github.com/dlemstra/code-sign-action) and [Gabriel Acosta Engler](https://github.com/GabrielAcostaEngler/signtool-code-sign) for providing a base for this action.
 
 ## Inputs
 
@@ -30,7 +30,7 @@ Thanks to [Dirk Lemstra](https://github.com/dlemstra/code-sign-action) for provi
 
 ## `cert-description`
 
-**Description** - Add a desciption to the files being signed.  
+**Description** - Add a description to the files being signed.  
 
 ## `folder`
 
