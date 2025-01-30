@@ -25,7 +25,8 @@ export default tseslint.config(
 			'jest/no-focused-tests': 'error',
 			'jest/no-identical-title': 'error',
 			'jest/prefer-to-have-length': 'warn',
-			'jest/valid-expect': 'error'
+			'jest/valid-expect': 'error',
+			'import/no-nodejs-modules': 'off'
 		}
 	}
 )

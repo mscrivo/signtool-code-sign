@@ -1,5 +1,4 @@
-// eslint-disable-next-line importPlugin/no-namespace
-import * as core from '@actions/core'
+import {getInput, error as core_error, info, setFailed} from '@actions/core'
 import {exec} from 'child_process'
 import {promises} from 'fs'
 import path from 'path'
@@ -15,13 +14,13 @@ const signtool =
 	'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe'
 
 // Inputs
-const coreFolder = core.getInput('folder')
-const coreRecursive = core.getInput('recursive') === 'true'
-const coreBase64cert = core.getInput('certificate')
-const corePassword = core.getInput('cert-password')
-const coreSha1 = core.getInput('cert-sha1')
-const coreTimestampServer = core.getInput('timestamp-server')
-const coreCertDesc = core.getInput('cert-description')
+const coreFolder = getInput('folder')
+const coreRecursive = getInput('recursive') === 'true'
+const coreBase64cert = getInput('certificate')
+const corePassword = getInput('cert-password')
+const coreSha1 = getInput('cert-sha1')
+const coreTimestampServer = getInput('timestamp-server')
+const coreCertDesc = getInput('cert-description')
 
 // Supported files
 const supportedFileExt = [
@@ -47,27 +46,27 @@ const supportedFileExt = [
  */
 function validateInputs(): boolean {
 	if (coreFolder.length === 0) {
-		core.error('folder input must have a value.')
+		core_error('folder input must have a value.')
 		return false
 	}
 
 	if (coreBase64cert.length === 0) {
-		core.error('certificate input must have a value.')
+		core_error('certificate input must have a value.')
 		return false
 	}
 
 	if (corePassword.length === 0) {
-		core.error('cert-password input must have a value.')
+		core_error('cert-password input must have a value.')
 		return false
 	}
 
 	if (coreSha1.length === 0) {
-		core.error('cert-sha1 input must have a value.')
+		core_error('cert-sha1 input must have a value.')
 		return false
 	}
 
 	if (corePassword.length === 0) {
-		core.error('password must have a value.')
+		core_error('password must have a value.')
 		return false
 	}
 
@@ -80,7 +79,7 @@ function validateInputs(): boolean {
  * @param seconds amount of seconds to wait.
  */
 function wait(seconds: number): unknown {
-	if (seconds > 0) core.info(`waiting for ${seconds} seconds.`)
+	if (seconds > 0) info(`waiting for ${seconds} seconds.`)
 	return new Promise(resolve => setTimeout(resolve, seconds * 1000))
 }
 
@@ -91,7 +90,7 @@ function wait(seconds: number): unknown {
 async function createCert(): Promise<boolean> {
 	const cert = Buffer.from(coreBase64cert, 'base64')
 
-	core.info(`creating PFX Certificate at path: ${certPath}`)
+	info(`creating PFX Certificate at path: ${certPath}`)
 	await promises.writeFile(certPath, cert)
 
 	return true
@@ -104,15 +103,15 @@ async function createCert(): Promise<boolean> {
 async function addCertToStore(): Promise<boolean> {
 	try {
 		const command = `certutil -f -p ${corePassword} -importpfx ${certPath}`
-		core.info(`adding to store using "${command}" command`)
+		info(`adding to store using "${command}" command`)
 
 		const {stdout} = await execAsync(command)
-		core.info(stdout)
+		info(stdout)
 
 		return true
 	} catch (error) {
-		core.error(error.stdout)
-		core.error(error.stderr)
+		core_error(error.stdout)
+		core_error(error.stderr)
 		return false
 	}
 }
@@ -133,21 +132,19 @@ async function trySign(file: string): Promise<boolean> {
 					command = command.concat(` /d "${coreCertDesc}"`)
 
 				command = command.concat(` "${file}"`)
-				core.info(`signing file: ${file}\nCommand: ${command}`)
+				info(`signing file: ${file}\nCommand: ${command}`)
 				const signCommandResult = await execAsync(command)
-				core.info(signCommandResult.stdout)
+				info(signCommandResult.stdout)
 
 				const verifyCommand = `"${signtool}" verify /pa "${file}"`
-				core.info(
-					`verifying signing for file: ${file}\nCommand: ${verifyCommand}`
-				)
+				info(`verifying signing for file: ${file}\nCommand: ${verifyCommand}`)
 				const verifyCommandResult = await execAsync(verifyCommand)
-				core.info(verifyCommandResult.stdout)
+				info(verifyCommandResult.stdout)
 
 				return true
 			} catch (error) {
-				core.error(error.stderr)
-				core.error(error.stderr)
+				core_error(error.stderr)
+				core_error(error.stderr)
 			}
 		}
 	}
@@ -187,7 +184,7 @@ async function run(): Promise<void> {
 		validateInputs()
 		if ((await createCert()) && (await addCertToStore())) await signFiles()
 	} catch (error) {
-		core.setFailed(`code Signing failed\nError: ${error}`)
+		setFailed(`code Signing failed\nError: ${error}`)
 	}
 }
 
