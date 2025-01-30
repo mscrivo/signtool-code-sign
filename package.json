@@ -1,55 +1,55 @@
 {
-  "name": "@mscrivo/windows-codesign-signtool",
-  "version": "1.1.4",
-  "private": false,
-  "description": "Sign files with signtool.exe",
-  "main": "lib/main.js",
-  "scripts": {
-    "build": "tsc",
-    "format": "prettier --write **/*.ts",
-    "format-check": "prettier --check **/*.ts",
-    "lint": "eslint src/**/*.ts",
-    "lint-fix": "eslint src/**/*.ts --fix",
-    "package": "ncc build --source-map --license licenses.txt",
-    "test": "jest",
-    "all": "npm run build && npm run format && npm run lint && npm run package && npm test"
-  },
-  "repository": {
-    "url": "git+https://github.com/mscrivo/signtool-code-sign.git"
-  },
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
-  },
-  "keywords": [
-    "actions",
-    "node",
-    "setup",
-    "signtool",
-    "windows",
-    "code-sign",
-    "publish"
-  ],
-  "author": "Michael Scrivo",
-  "license": "MIT",
-  "dependencies": {
-    "@actions/core": "^1.11.1"
-  },
-  "devDependencies": {
-    "@eslint/js": "^9.19.0",
-    "@eslint/eslintrc": "^3.2.0",
-    "@types/jest": "^29.5.14",
-    "@types/node": "^22.10.10",
-    "@typescript-eslint/parser": "^8.21.0",
-    "@vercel/ncc": "^0.38.3",
-    "eslint": "^9.19.0",
-    "eslint-plugin-github": "^5.1.6",
-    "eslint-plugin-jest": "^28.11.0",
-    "jest": "^29.7.0",
-    "jest-circus": "^29.7.0",
-    "js-yaml": "^4.1.0",
-    "prettier": "^3.4.2",
-    "ts-jest": "^29.2.5",
-    "typescript": "^5.7.3",
-    "typescript-eslint": "^8.21.0"
-  }
+	"name": "@mscrivo/windows-codesign-signtool",
+	"version": "1.1.5",
+	"private": false,
+	"description": "Sign files with signtool.exe",
+	"main": "lib/main.js",
+	"scripts": {
+		"build": "tsc",
+		"format": "prettier --write **/*.ts",
+		"format-check": "prettier --check **/*.ts",
+		"lint": "eslint src/**/*.ts",
+		"lint-fix": "eslint src/**/*.ts --fix",
+		"package": "ncc build --source-map --license licenses.txt",
+		"test": "jest",
+		"all": "npm run build && npm run format && npm run lint && npm run package && npm test"
+	},
+	"repository": {
+		"url": "git+https://github.com/mscrivo/signtool-code-sign.git"
+	},
+	"publishConfig": {
+		"registry": "https://npm.pkg.github.com"
+	},
+	"keywords": [
+		"actions",
+		"node",
+		"setup",
+		"signtool",
+		"windows",
+		"code-sign",
+		"publish"
+	],
+	"author": "Michael Scrivo",
+	"license": "MIT",
+	"dependencies": {
+		"@actions/core": "^1.11.1"
+	},
+	"devDependencies": {
+		"@eslint/js": "^9.19.0",
+		"@eslint/eslintrc": "^3.2.0",
+		"@types/jest": "^29.5.14",
+		"@types/node": "^22.10.10",
+		"@typescript-eslint/parser": "^8.21.0",
+		"@vercel/ncc": "^0.38.3",
+		"eslint": "^9.19.0",
+		"eslint-plugin-github": "^5.1.6",
+		"eslint-plugin-jest": "^28.11.0",
+		"jest": "^29.7.0",
+		"jest-circus": "^29.7.0",
+		"js-yaml": "^4.1.0",
+		"prettier": "^3.4.2",
+		"ts-jest": "^29.2.5",
+		"typescript": "^5.7.3",
+		"typescript-eslint": "^8.21.0"
+	}
 }
