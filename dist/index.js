@@ -6,39 +6,6 @@ require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 
 "use strict";
 
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -77,8 +44,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-// eslint-disable-next-line importPlugin/no-namespace
-const core = __importStar(__nccwpck_require__(7484));
+const core_1 = __nccwpck_require__(7484);
 const child_process_1 = __nccwpck_require__(5317);
 const fs_1 = __nccwpck_require__(9896);
 const path_1 = __importDefault(__nccwpck_require__(6928));
@@ -90,13 +56,13 @@ const execAsync = util_1.default.promisify(child_process_1.exec);
 const certPath = `${process_1.env['TEMP']}\\certificate.pfx`;
 const signtool = 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe';
 // Inputs
-const coreFolder = core.getInput('folder');
-const coreRecursive = core.getInput('recursive') === 'true';
-const coreBase64cert = core.getInput('certificate');
-const corePassword = core.getInput('cert-password');
-const coreSha1 = core.getInput('cert-sha1');
-const coreTimestampServer = core.getInput('timestamp-server');
-const coreCertDesc = core.getInput('cert-description');
+const coreFolder = (0, core_1.getInput)('folder');
+const coreRecursive = (0, core_1.getInput)('recursive') === 'true';
+const coreBase64cert = (0, core_1.getInput)('certificate');
+const corePassword = (0, core_1.getInput)('cert-password');
+const coreSha1 = (0, core_1.getInput)('cert-sha1');
+const coreTimestampServer = (0, core_1.getInput)('timestamp-server');
+const coreCertDesc = (0, core_1.getInput)('cert-description');
 // Supported files
 const supportedFileExt = [
     '.dll',
@@ -120,23 +86,23 @@ const supportedFileExt = [
  */
 function validateInputs() {
     if (coreFolder.length === 0) {
-        core.error('folder input must have a value.');
+        (0, core_1.error)('folder input must have a value.');
         return false;
     }
     if (coreBase64cert.length === 0) {
-        core.error('certificate input must have a value.');
+        (0, core_1.error)('certificate input must have a value.');
         return false;
     }
     if (corePassword.length === 0) {
-        core.error('cert-password input must have a value.');
+        (0, core_1.error)('cert-password input must have a value.');
         return false;
     }
     if (coreSha1.length === 0) {
-        core.error('cert-sha1 input must have a value.');
+        (0, core_1.error)('cert-sha1 input must have a value.');
         return false;
     }
     if (corePassword.length === 0) {
-        core.error('password must have a value.');
+        (0, core_1.error)('password must have a value.');
         return false;
     }
     return true;
@@ -148,7 +114,7 @@ function validateInputs() {
  */
 function wait(seconds) {
     if (seconds > 0)
-        core.info(`waiting for ${seconds} seconds.`);
+        (0, core_1.info)(`waiting for ${seconds} seconds.`);
     return new Promise(resolve => setTimeout(resolve, seconds * 1000));
 }
 /**
@@ -158,7 +124,7 @@ function wait(seconds) {
 function createCert() {
     return __awaiter(this, void 0, void 0, function* () {
         const cert = Buffer.from(coreBase64cert, 'base64');
-        core.info(`creating PFX Certificate at path: ${certPath}`);
+        (0, core_1.info)(`creating PFX Certificate at path: ${certPath}`);
         yield fs_1.promises.writeFile(certPath, cert);
         return true;
     });
@@ -171,14 +137,14 @@ function addCertToStore() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             const command = `certutil -f -p ${corePassword} -importpfx ${certPath}`;
-            core.info(`adding to store using "${command}" command`);
+            (0, core_1.info)(`adding to store using "${command}" command`);
             const { stdout } = yield execAsync(command);
-            core.info(stdout);
+            (0, core_1.info)(stdout);
             return true;
         }
         catch (error) {
-            core.error(error.stdout);
-            core.error(error.stderr);
+            (0, core_1.error)(error.stdout);
+            (0, core_1.error)(error.stderr);
             return false;
         }
     });
@@ -199,18 +165,18 @@ function trySign(file) {
                     if (coreCertDesc !== '')
                         command = command.concat(` /d "${coreCertDesc}"`);
                     command = command.concat(` "${file}"`);
-                    core.info(`signing file: ${file}\nCommand: ${command}`);
+                    (0, core_1.info)(`signing file: ${file}\nCommand: ${command}`);
                     const signCommandResult = yield execAsync(command);
-                    core.info(signCommandResult.stdout);
+                    (0, core_1.info)(signCommandResult.stdout);
                     const verifyCommand = `"${signtool}" verify /pa "${file}"`;
-                    core.info(`verifying signing for file: ${file}\nCommand: ${verifyCommand}`);
+                    (0, core_1.info)(`verifying signing for file: ${file}\nCommand: ${verifyCommand}`);
                     const verifyCommandResult = yield execAsync(verifyCommand);
-                    core.info(verifyCommandResult.stdout);
+                    (0, core_1.info)(verifyCommandResult.stdout);
                     return true;
                 }
                 catch (error) {
-                    core.error(error.stderr);
-                    core.error(error.stderr);
+                    (0, core_1.error)(error.stderr);
+                    (0, core_1.error)(error.stderr);
                 }
             }
         }
@@ -241,7 +207,6 @@ function signFiles() {
         }
     });
 }
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Return files one by one to be signed.
  *
@@ -262,7 +227,6 @@ function getFiles(folder, recursive) {
         }
     });
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
@@ -271,7 +235,7 @@ function run() {
                 yield signFiles();
         }
         catch (error) {
-            core.setFailed(`code Signing failed\nError: ${error}`);
+            (0, core_1.setFailed)(`code Signing failed\nError: ${error}`);
         }
     });
 }
@@ -11814,6 +11778,14 @@ const { isUint8Array, isArrayBuffer } = __nccwpck_require__(8253)
 const { File: UndiciFile } = __nccwpck_require__(3041)
 const { parseMIMEType, serializeAMimeType } = __nccwpck_require__(4322)
 
+let random
+try {
+  const crypto = __nccwpck_require__(7598)
+  random = (max) => crypto.randomInt(0, max)
+} catch {
+  random = (max) => Math.floor(Math.random(max))
+}
+
 let ReadableStream = globalThis.ReadableStream
 
 /** @type {globalThis['File']} */
@@ -11899,7 +11871,7 @@ function extractBody (object, keepalive = false) {
     // Set source to a copy of the bytes held by object.
     source = new Uint8Array(object.buffer.slice(object.byteOffset, object.byteOffset + object.byteLength))
   } else if (util.isFormDataLike(object)) {
-    const boundary = `----formdata-undici-0${`${Math.floor(Math.random() * 1e11)}`.padStart(11, '0')}`
+    const boundary = `----formdata-undici-0${`${random(1e11)}`.padStart(11, '0')}`
     const prefix = `--${boundary}\r\nContent-Disposition: form-data`
 
     /*! formdata-polyfill. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> */
@@ -26015,6 +25987,14 @@ module.exports = require("https");
 
 "use strict";
 module.exports = require("net");
+
+/***/ }),
+
+/***/ 7598:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("node:crypto");
 
 /***/ }),
 
