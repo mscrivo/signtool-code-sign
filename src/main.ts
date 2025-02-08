@@ -160,12 +160,14 @@ async function signFiles(): Promise<void> {
 		await trySign(file)
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Return files one by one to be signed.
  *
  */
-async function* getFiles(folder: string, recursive: boolean): any {
+async function* getFiles(
+	folder: string,
+	recursive: boolean
+): AsyncGenerator<string, void, unknown> {
 	const files = await promises.readdir(folder)
 	for (const file of files) {
 		const fullPath = `${folder}/${file}`
@@ -177,7 +179,6 @@ async function* getFiles(folder: string, recursive: boolean): any {
 			yield* getFiles(fullPath, recursive)
 	}
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 async function run(): Promise<void> {
 	try {
