@@ -1,4 +1,4 @@
-// eslint-disable-next-line no-undef, importPlugin/no-commonjs
+// eslint-disable-next-line import/no-commonjs, no-undef
 module.exports = {
 	clearMocks: true,
 	moduleFileExtensions: ['js', 'ts'],
