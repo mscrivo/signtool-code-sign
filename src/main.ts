@@ -5,8 +5,17 @@ import path from 'path'
 import {env} from 'process'
 import util from 'util'
 
-// Exec
-const execAsync = util.promisify(exec)
+// Exec (mutable for tests)
+interface ExecResult {
+	stdout: string
+	stderr: string
+}
+type ExecFn = (command: string) => Promise<ExecResult>
+let execAsync: ExecFn = util.promisify(exec) as unknown as ExecFn
+export function setExecAsync(fn: ExecFn): void {
+	// test helper to inject mock implementation
+	execAsync = fn
+}
 
 // Internal paths
 const certPath = `${env['TEMP']}\\certificate.pfx`
@@ -42,34 +51,33 @@ const supportedFileExt = [
 
 /**
  * Validate workflow inputs.
- *
  */
-function validateInputs(): boolean {
-	if (coreFolder.length === 0) {
+export function validateInputs(): boolean {
+	// Fetch fresh values to allow dynamic testing
+	const folder = getInput('folder')
+	const base64cert = getInput('certificate')
+	const password = getInput('cert-password')
+	const sha1 = getInput('cert-sha1')
+	if (folder.length === 0) {
 		core_error('folder input must have a value.')
 		return false
 	}
-
-	if (coreBase64cert.length === 0) {
+	if (base64cert.length === 0) {
 		core_error('certificate input must have a value.')
 		return false
 	}
-
-	if (corePassword.length === 0) {
+	if (password.length === 0) {
 		core_error('cert-password input must have a value.')
 		return false
 	}
-
-	if (coreSha1.length === 0) {
+	if (sha1.length === 0) {
 		core_error('cert-sha1 input must have a value.')
 		return false
 	}
-
-	if (corePassword.length === 0) {
+	if (password.length === 0) {
 		core_error('password must have a value.')
 		return false
 	}
-
 	return true
 }
 
@@ -78,7 +86,8 @@ function validateInputs(): boolean {
  *
  * @param seconds amount of seconds to wait.
  */
-function wait(seconds: number): unknown {
+export function wait(seconds: number): unknown {
+	if (process.env.JEST_SKIP_WAIT) return Promise.resolve()
 	if (seconds > 0) info(`waiting for ${seconds} seconds.`)
 	return new Promise(resolve => setTimeout(resolve, seconds * 1000))
 }
@@ -87,7 +96,7 @@ function wait(seconds: number): unknown {
  * Create PFX Certification file from base64 certification.
  *
  */
-async function createCert(): Promise<boolean> {
+export async function createCert(): Promise<boolean> {
 	const cert = Buffer.from(coreBase64cert, 'base64')
 
 	info(`creating PFX Certificate at path: ${certPath}`)
@@ -100,7 +109,7 @@ async function createCert(): Promise<boolean> {
  * Add Certificate to the store using certutil.
  *
  */
-async function addCertToStore(): Promise<boolean> {
+export async function addCertToStore(): Promise<boolean> {
 	try {
 		const command = `certutil -f -p ${corePassword} -importpfx ${certPath}`
 		info(`adding to store using "${command}" command`)
@@ -121,7 +130,7 @@ async function addCertToStore(): Promise<boolean> {
  *
  * @param file File to be signed.
  */
-async function trySign(file: string): Promise<boolean> {
+export async function trySign(file: string): Promise<boolean> {
 	const ext = path.extname(file)
 	for (let i = 0; i < 5; i++) {
 		await wait(i)
@@ -155,7 +164,7 @@ async function trySign(file: string): Promise<boolean> {
  * Sign all files in folder, this is done recursively if recursive == 'true'
  *
  */
-async function signFiles(): Promise<void> {
+export async function signFiles(): Promise<void> {
 	for await (const file of getFiles(coreFolder, coreRecursive))
 		await trySign(file)
 }
@@ -164,7 +173,7 @@ async function signFiles(): Promise<void> {
  * Return files one by one to be signed.
  *
  */
-async function* getFiles(
+export async function* getFiles(
 	folder: string,
 	recursive: boolean
 ): AsyncGenerator<string, void, unknown> {
@@ -180,7 +189,7 @@ async function* getFiles(
 	}
 }
 
-async function run(): Promise<void> {
+export async function run(): Promise<void> {
 	try {
 		validateInputs()
 		if ((await createCert()) && (await addCertToStore())) await signFiles()
@@ -189,4 +198,18 @@ async function run(): Promise<void> {
 	}
 }
 
-run()
+// Only auto-run when not under Jest (so tests can import without side-effects)
+if (!process.env.JEST_WORKER_ID) {
+	run()
+}
+
+export default {
+	validateInputs,
+	wait,
+	createCert,
+	addCertToStore,
+	trySign,
+	signFiles,
+	getFiles,
+	run
+}
