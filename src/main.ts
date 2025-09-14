@@ -12,6 +12,7 @@ interface ExecResult {
 }
 type ExecFn = (command: string) => Promise<ExecResult>
 let execAsync: ExecFn = util.promisify(exec) as unknown as ExecFn
+let execFileAsync = util.promisify(execFile)
 const execFileAsync = util.promisify(execFile)
 export function setExecAsync(fn: ExecFn): void {
 	// test helper to inject mock implementation
@@ -137,15 +138,19 @@ export async function trySign(file: string): Promise<boolean> {
 		await wait(i)
 		if (supportedFileExt.includes(ext)) {
 			try {
-				let command = `"${signtool}" sign /sm /t ${coreTimestampServer} /sha1 "${coreSha1}"`
+				const signArgs = [
+					'sign',
+					'/sm',
+					'/t', coreTimestampServer,
+					'/sha1', coreSha1
+				]
 				if (coreCertDesc !== '')
-					command = command.concat(` /d "${coreCertDesc}"`)
+					signArgs.push('/d', coreCertDesc)
+				signArgs.push(file)
 
-				command = command.concat(` "${file}"`)
-				info(`signing file: ${file}\nCommand: ${command}`)
-				const signCommandResult = await execAsync(command)
+				info(`signing file: ${file}\nCommand: ${signtool} ${signArgs.map(arg => `"${arg}"`).join(' ')}`)
+				const signCommandResult = await execFileAsync(signtool, signArgs)
 				info(signCommandResult.stdout)
-
 				const verifyArgs = ['verify', '/pa', file]
 				info(
 					`verifying signing for file: ${file}\nCommand: ${signtool} verify /pa "${file}"`
