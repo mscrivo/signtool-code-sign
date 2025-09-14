@@ -1,5 +1,5 @@
 import {getInput, error as core_error, info, setFailed} from '@actions/core'
-import {exec} from 'child_process'
+import {exec, execFile} from 'child_process'
 import {promises} from 'fs'
 import path from 'path'
 import {env} from 'process'
@@ -12,6 +12,7 @@ interface ExecResult {
 }
 type ExecFn = (command: string) => Promise<ExecResult>
 let execAsync: ExecFn = util.promisify(exec) as unknown as ExecFn
+const execFileAsync = util.promisify(execFile)
 export function setExecAsync(fn: ExecFn): void {
 	// test helper to inject mock implementation
 	execAsync = fn
@@ -145,9 +146,11 @@ export async function trySign(file: string): Promise<boolean> {
 				const signCommandResult = await execAsync(command)
 				info(signCommandResult.stdout)
 
-				const verifyCommand = `"${signtool}" verify /pa "${file}"`
-				info(`verifying signing for file: ${file}\nCommand: ${verifyCommand}`)
-				const verifyCommandResult = await execAsync(verifyCommand)
+				const verifyArgs = ['verify', '/pa', file]
+				info(
+					`verifying signing for file: ${file}\nCommand: ${signtool} verify /pa "${file}"`
+				)
+				const verifyCommandResult = await execFileAsync(signtool, verifyArgs)
 				info(verifyCommandResult.stdout)
 
 				return true
