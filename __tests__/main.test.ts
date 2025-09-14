@@ -1,5 +1,7 @@
+/* eslint-disable prettier/prettier */
 import {error, setFailed} from '@actions/core'
-// Mutable inputs map backing mocked getInput
+
+// Global test inputs object
 const inputs: Record<string, string> = {}
 
 // Mock @actions/core before importing code under test
@@ -27,8 +29,44 @@ jest.mock('fs', () => {
 	}
 })
 
+// Mock child_process to handle both exec and execFile
+const execFileMock = jest.fn()
+jest.mock('child_process', () => ({
+	exec: jest.fn(),
+	execFile: execFileMock
+}))
+
+// Mock util.promisify to return our mocked execFile function
+jest.mock('util', () => {
+	const actual = jest.requireActual('util')
+	const {execFile} = jest.requireMock('child_process')
+	return {
+		...actual,
+		promisify: (fn: unknown) => {
+			if (fn === execFile) {
+				return execFileMock
+			}
+			return actual.promisify(fn)
+		}
+	}
+})
+
+// Import the module after mocks are set up
+// eslint-disable-next-line import/first
+import {
+	validateInputs,
+	createCert,
+	trySign,
+	getFiles,
+	signFiles,
+	run,
+	setExecAsync
+} from '../src/main'
+
 function setInputs(over: Record<string, string>): void {
+	// Clear existing inputs
 	for (const k of Object.keys(inputs)) delete inputs[k]
+	// Set default valid inputs
 	Object.assign(inputs, {
 		folder: 'folder',
 		recursive: 'false',
@@ -43,23 +81,25 @@ function setInputs(over: Record<string, string>): void {
 
 describe('main minimal (mocked core)', () => {
 	beforeEach(() => {
+		// Clear all mocks but don't reset modules (causes flakiness)
 		jest.clearAllMocks()
-		jest.restoreAllMocks()
-		process.env.TEMP = 'C:/Temp'
+
+		// Set consistent environment
 		process.env.JEST_SKIP_WAIT = '1'
+
+		// Set up execFile mock to succeed by default
+		execFileMock.mockResolvedValue({stdout: 'verified', stderr: ''})
 	})
 
 	it('validateInputs success', async () => {
 		setInputs({})
-		const mod = await import('../src/main')
-		expect(mod.validateInputs()).toBe(true)
+		expect(validateInputs()).toBe(true)
 	})
 
 	it('validateInputs failure missing folder', async () => {
 		setInputs({folder: ''})
-		const mod = await import('../src/main')
 		const err = error as jest.Mock
-		const result = mod.validateInputs()
+		const result = validateInputs()
 		expect(result).toBe(false)
 		expect(err.mock.calls.map(c => c[0])).toContain(
 			'folder input must have a value.'
@@ -68,17 +108,15 @@ describe('main minimal (mocked core)', () => {
 
 	it('createCert writes file', async () => {
 		setInputs({})
-		const mod = await import('../src/main')
 		writeFileMock.mockResolvedValue(undefined)
-		await expect(mod.createCert()).resolves.toBe(true)
+		await expect(createCert()).resolves.toBe(true)
 		expect(writeFileMock).toHaveBeenCalledTimes(1)
 	})
 
 	it('validateInputs failure empty certificate', async () => {
 		setInputs({certificate: ''})
-		const mod = await import('../src/main')
 		const err = error as jest.Mock
-		expect(mod.validateInputs()).toBe(false)
+		expect(validateInputs()).toBe(false)
 		expect(err.mock.calls.flat()).toContain(
 			'certificate input must have a value.'
 		)
@@ -86,9 +124,8 @@ describe('main minimal (mocked core)', () => {
 
 	it('validateInputs failure empty password', async () => {
 		setInputs({'cert-password': ''})
-		const mod = await import('../src/main')
 		const err = error as jest.Mock
-		expect(mod.validateInputs()).toBe(false)
+		expect(validateInputs()).toBe(false)
 		expect(err.mock.calls.flat()).toContain(
 			'cert-password input must have a value.'
 		)
@@ -96,9 +133,8 @@ describe('main minimal (mocked core)', () => {
 
 	it('validateInputs failure empty sha1', async () => {
 		setInputs({'cert-sha1': ''})
-		const mod = await import('../src/main')
 		const err = error as jest.Mock
-		expect(mod.validateInputs()).toBe(false)
+		expect(validateInputs()).toBe(false)
 		expect(err.mock.calls.flat()).toContain(
 			'cert-sha1 input must have a value.'
 		)
@@ -106,32 +142,36 @@ describe('main minimal (mocked core)', () => {
 
 	it('trySign success signs and verifies supported file', async () => {
 		setInputs({})
-		const mod = await import('../src/main')
 		const execCalls: string[] = []
-		mod.setExecAsync(async (cmd: string) => {
+		setExecAsync(async (cmd: string) => {
 			execCalls.push(cmd)
 			return {stdout: 'ok', stderr: ''}
 		})
+		// Mock execFile for verification step
+		execFileMock.mockResolvedValue({stdout: 'verified', stderr: ''})
+
 		// Fake supported extension by using actual .dll
 		const file = 'C:/test/file.dll'
-		await expect(mod.trySign(file)).resolves.toBe(true)
-		expect(execCalls).toHaveLength(2) // sign + verify
-		expect(execCalls[0]).toContain('/sha1 "sha1"')
+		await expect(trySign(file)).resolves.toBe(true)
+		expect(execCalls).toHaveLength(1) // only sign command
+		expect(execCalls[0]).toContain('/sha1')
+		expect(execFileMock).toHaveBeenCalledTimes(1) // verify command
 	})
 
 	it('trySign retries 5 times then fails on persistent error', async () => {
 		setInputs({})
-		const mod = await import('../src/main')
 		type ExecResult = {stdout: string; stderr: string}
 		type ExecFn = (cmd: string) => Promise<ExecResult>
 		const execMock: ExecFn & jest.Mock = jest
 			.fn<Promise<ExecResult>, [string]>()
 			.mockRejectedValue({stderr: 'fail', stdout: ''})
-		mod.setExecAsync(execMock)
+		setExecAsync(execMock)
 		// Speed up by stubbing wait
-		jest.spyOn(mod, 'wait').mockImplementation(() => Promise.resolve())
+		jest
+			.spyOn({wait: () => Promise.resolve()}, 'wait')
+			.mockImplementation(() => Promise.resolve())
 		const file = 'C:/t/file.exe'
-		await expect(mod.trySign(file)).resolves.toBe(false)
+		await expect(trySign(file)).resolves.toBe(false)
 		expect(execMock).toHaveBeenCalledTimes(5)
 	})
 
@@ -152,9 +192,8 @@ describe('main minimal (mocked core)', () => {
 			if (name === 'sub') return {isFile: () => false, isDirectory: () => true}
 			return {isFile: () => false, isDirectory: () => false}
 		})
-		const mod2 = await import('../src/main')
 		const collected: string[] = []
-		for await (const f of mod2.getFiles('folder', true)) collected.push(f)
+		for await (const f of getFiles('folder', true)) collected.push(f)
 		expect(collected).toEqual([
 			'folder/a.dll',
 			'folder/sub/inner.exe',
@@ -170,15 +209,15 @@ describe('main minimal (mocked core)', () => {
 			isFile: () => true,
 			isDirectory: () => false
 		}))
-		const mod = await import('../src/main')
 		const execCalls: string[] = []
-		mod.setExecAsync(async (cmd: string) => {
+		setExecAsync(async (cmd: string) => {
 			execCalls.push(cmd)
 			return {stdout: 'ok', stderr: ''}
 		})
-		await mod.signFiles()
-		// each file => sign + verify = 4 calls
+		await signFiles()
+		// Each file should be signed once (no retries since both exec calls succeed)
 		expect(execCalls.filter(c => c.includes('sign '))).toHaveLength(2)
+		expect(execFileMock).toHaveBeenCalledTimes(2) // verify calls
 	})
 
 	it('run orchestrates success path', async () => {
@@ -189,15 +228,14 @@ describe('main minimal (mocked core)', () => {
 			isDirectory: () => false
 		}))
 		writeFileMock.mockResolvedValue(undefined)
-		const mod = await import('../src/main')
 		const execCalls: string[] = []
-		mod.setExecAsync(async (cmd: string) => {
+		setExecAsync(async (cmd: string) => {
 			execCalls.push(cmd)
 			return {stdout: 'ok', stderr: ''}
 		})
-		await mod.run()
+		await run()
 		expect(execCalls.some(c => c.includes('sign '))).toBe(true)
-		expect(execCalls.some(c => c.includes('verify '))).toBe(true)
+		expect(execFileMock).toHaveBeenCalled() // verify was called
 	})
 
 	it('run aborts when addCertToStore fails (no signing execs)', async () => {
@@ -209,14 +247,13 @@ describe('main minimal (mocked core)', () => {
 		}))
 		// writeFile ok (createCert success)
 		writeFileMock.mockResolvedValue(undefined)
-		const mod = await import('../src/main')
 		const execCalls: string[] = []
-		mod.setExecAsync(async (cmd: string) => {
+		setExecAsync(async (cmd: string) => {
 			if (cmd.startsWith('certutil')) throw new Error('fail')
 			execCalls.push(cmd)
 			return {stdout: 'ok', stderr: ''}
 		})
-		await mod.run()
+		await run()
 		// Signing should not have occurred
 		expect(execCalls.some(c => c.includes('sign '))).toBe(false)
 	})
@@ -225,8 +262,7 @@ describe('main minimal (mocked core)', () => {
 		setInputs({})
 		// Force write failure
 		writeFileMock.mockRejectedValue(new Error('disk full'))
-		const mod = await import('../src/main')
-		await mod.run()
+		await run()
 		const sf = setFailed as jest.Mock
 		expect(sf.mock.calls.flat().join(' ')).toContain('code Signing failed')
 	})

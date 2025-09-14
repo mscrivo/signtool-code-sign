@@ -147,7 +147,9 @@ export async function trySign(file: string): Promise<boolean> {
 				info(signCommandResult.stdout)
 
 				const verifyArgs = ['verify', '/pa', file]
-				info(`verifying signing for file: ${file}\nCommand: ${signtool} verify /pa "${file}"`)
+				info(
+					`verifying signing for file: ${file}\nCommand: ${signtool} verify /pa "${file}"`
+				)
 				const verifyCommandResult = await execFileAsync(signtool, verifyArgs)
 				info(verifyCommandResult.stdout)
 
