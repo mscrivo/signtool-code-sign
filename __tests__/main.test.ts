@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import {error, setFailed} from '@actions/core'
 
 // Global test inputs object
@@ -89,6 +88,9 @@ describe('main minimal (mocked core)', () => {
 
 		// Set up execFile mock to succeed by default
 		execFileMock.mockResolvedValue({stdout: 'verified', stderr: ''})
+
+		// Set up a default execAsync mock (can be overridden in individual tests)
+		setExecAsync(async () => ({stdout: 'ok', stderr: ''}))
 	})
 
 	it('validateInputs success', async () => {
@@ -142,37 +144,57 @@ describe('main minimal (mocked core)', () => {
 
 	it('trySign success signs and verifies supported file', async () => {
 		setInputs({})
-		const execCalls: string[] = []
-		setExecAsync(async (cmd: string) => {
-			execCalls.push(cmd)
-			return {stdout: 'ok', stderr: ''}
+
+		// Track execFile calls (both signing and verification now use execFileAsync)
+		const execFileCalls: Array<{tool: string; args: string[]}> = []
+		execFileMock.mockImplementation(async (tool: string, args: string[]) => {
+			execFileCalls.push({tool, args})
+			return {stdout: 'verified', stderr: ''}
 		})
-		// Mock execFile for verification step
-		execFileMock.mockResolvedValue({stdout: 'verified', stderr: ''})
 
 		// Fake supported extension by using actual .dll
 		const file = 'C:/test/file.dll'
 		await expect(trySign(file)).resolves.toBe(true)
-		expect(execCalls).toHaveLength(1) // only sign command
-		expect(execCalls[0]).toContain('/sha1')
-		expect(execFileMock).toHaveBeenCalledTimes(1) // verify command
+
+		// Should have been called twice: once for signing, once for verification
+		expect(execFileCalls).toHaveLength(2)
+
+		// First call should be signing
+		expect(execFileCalls[0].args).toContain('sign')
+		expect(execFileCalls[0].args).toContain('/sha1')
+
+		// Second call should be verification
+		expect(execFileCalls[1].args).toContain('verify')
 	})
 
 	it('trySign retries 5 times then fails on persistent error', async () => {
 		setInputs({})
-		type ExecResult = {stdout: string; stderr: string}
-		type ExecFn = (cmd: string) => Promise<ExecResult>
-		const execMock: ExecFn & jest.Mock = jest
-			.fn<Promise<ExecResult>, [string]>()
-			.mockRejectedValue({stderr: 'fail', stdout: ''})
-		setExecAsync(execMock)
+
+		// Mock execFile to fail on signing attempts
+		let callCount = 0
+		execFileMock.mockImplementation(async (tool: string, args: string[]) => {
+			callCount++
+			// Fail if it's a signing command
+			if (args.includes('sign')) {
+				const err = new Error('fail') as Error & {
+					stderr: string
+					stdout: string
+				}
+				err.stderr = 'fail'
+				err.stdout = ''
+				throw err
+			}
+			// Should not reach verification since signing fails
+			return {stdout: 'verified', stderr: ''}
+		})
+
 		// Speed up by stubbing wait
 		jest
 			.spyOn({wait: () => Promise.resolve()}, 'wait')
 			.mockImplementation(() => Promise.resolve())
 		const file = 'C:/t/file.exe'
 		await expect(trySign(file)).resolves.toBe(false)
-		expect(execMock).toHaveBeenCalledTimes(5)
+		expect(callCount).toBe(5) // Should have tried signing 5 times
 	})
 
 	it('getFiles yields supported and .nupkg recursively', async () => {
@@ -209,15 +231,25 @@ describe('main minimal (mocked core)', () => {
 			isFile: () => true,
 			isDirectory: () => false
 		}))
-		const execCalls: string[] = []
-		setExecAsync(async (cmd: string) => {
-			execCalls.push(cmd)
+
+		// Track execFile calls (now used for both signing and verification)
+		const execFileCalls: Array<{tool: string; args: string[]}> = []
+		execFileMock.mockImplementation(async (tool: string, args: string[]) => {
+			execFileCalls.push({tool, args})
 			return {stdout: 'ok', stderr: ''}
 		})
+
 		await signFiles()
-		// Each file should be signed once (no retries since both exec calls succeed)
-		expect(execCalls.filter(c => c.includes('sign '))).toHaveLength(2)
-		expect(execFileMock).toHaveBeenCalledTimes(2) // verify calls
+
+		// Each file should be signed and verified (4 total calls: 2 sign + 2 verify)
+		expect(
+			execFileCalls.filter(call => call.args.includes('sign'))
+		).toHaveLength(2)
+		expect(
+			execFileCalls.filter(call => call.args.includes('verify'))
+		).toHaveLength(2)
+		// Also check that readdir was called with the expected folder
+		expect(readdirMock).toHaveBeenCalledWith('folder')
 	})
 
 	it('run orchestrates success path', async () => {
@@ -228,14 +260,20 @@ describe('main minimal (mocked core)', () => {
 			isDirectory: () => false
 		}))
 		writeFileMock.mockResolvedValue(undefined)
-		const execCalls: string[] = []
-		setExecAsync(async (cmd: string) => {
-			execCalls.push(cmd)
+
+		// Track execFile calls to verify signing occurred
+		const execFileCalls: Array<{tool: string; args: string[]}> = []
+		execFileMock.mockImplementation(async (tool: string, args: string[]) => {
+			execFileCalls.push({tool, args})
 			return {stdout: 'ok', stderr: ''}
 		})
+
 		await run()
-		expect(execCalls.some(c => c.includes('sign '))).toBe(true)
-		expect(execFileMock).toHaveBeenCalled() // verify was called
+
+		// Should have signing calls
+		expect(execFileCalls.some(call => call.args.includes('sign'))).toBe(true)
+		// Should have verification calls
+		expect(execFileCalls.some(call => call.args.includes('verify'))).toBe(true)
 	})
 
 	it('run aborts when addCertToStore fails (no signing execs)', async () => {
@@ -255,7 +293,7 @@ describe('main minimal (mocked core)', () => {
 		})
 		await run()
 		// Signing should not have occurred
-		expect(execCalls.some(c => c.includes('sign '))).toBe(false)
+		expect(execCalls.some(c => c.includes('"sign"'))).toBe(false)
 	})
 
 	it('run handles createCert write error and calls setFailed', async () => {

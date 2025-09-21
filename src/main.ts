@@ -23,14 +23,9 @@ const certPath = `${env['TEMP']}\\certificate.pfx`
 const signtool =
 	'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe'
 
-// Inputs
-const coreFolder = getInput('folder')
-const coreRecursive = getInput('recursive') === 'true'
+// Inputs (used in various functions)
 const coreBase64cert = getInput('certificate')
 const corePassword = getInput('cert-password')
-const coreSha1 = getInput('cert-sha1')
-const coreTimestampServer = getInput('timestamp-server')
-const coreCertDesc = getInput('cert-description')
 
 // Supported files
 const supportedFileExt = [
@@ -73,10 +68,6 @@ export function validateInputs(): boolean {
 	}
 	if (sha1.length === 0) {
 		core_error('cert-sha1 input must have a value.')
-		return false
-	}
-	if (password.length === 0) {
-		core_error('password must have a value.')
 		return false
 	}
 	return true
@@ -133,29 +124,35 @@ export async function addCertToStore(): Promise<boolean> {
  */
 export async function trySign(file: string): Promise<boolean> {
 	const ext = path.extname(file)
+	// Read inputs dynamically to allow testing
+	const timestampServer = getInput('timestamp-server')
+	const sha1 = getInput('cert-sha1')
+	const certDesc = getInput('cert-description')
+
 	for (let i = 0; i < 5; i++) {
 		await wait(i)
 		if (supportedFileExt.includes(ext)) {
 			try {
-				let command = `"${signtool}" sign /sm /t ${coreTimestampServer} /sha1 "${coreSha1}"`
-				if (coreCertDesc !== '')
-					command = command.concat(` /d "${coreCertDesc}"`)
+				const signArgs = ['sign', '/sm', '/t', timestampServer, '/sha1', sha1]
+				if (certDesc !== '') signArgs.push('/d', certDesc)
+				signArgs.push(file)
 
-				command = command.concat(` "${file}"`)
-				info(`signing file: ${file}\nCommand: ${command}`)
-				const signCommandResult = await execAsync(command)
-				info(signCommandResult.stdout)
-
-				const verifyArgs = ['verify', '/pa', file]
 				info(
-					`verifying signing for file: ${file}\nCommand: ${signtool} verify /pa "${file}"`
+					`signing file: ${file}\nArguments: ${[signtool, ...signArgs].join(' ')}`
 				)
-				const verifyCommandResult = await execFileAsync(signtool, verifyArgs)
+				const signCommandResult = await execFileAsync(signtool, signArgs)
+				info(signCommandResult.stdout)
+				const verifyCommand = `"${signtool}" verify /pa "${file}"`
+				info(`verifying signing for file: ${file}\nCommand: ${verifyCommand}`)
+				const verifyCommandResult = await execFileAsync(signtool, [
+					'verify',
+					'/pa',
+					file
+				])
 				info(verifyCommandResult.stdout)
 
 				return true
 			} catch (error) {
-				core_error(error.stderr)
 				core_error(error.stderr)
 			}
 		}
@@ -168,8 +165,10 @@ export async function trySign(file: string): Promise<boolean> {
  *
  */
 export async function signFiles(): Promise<void> {
-	for await (const file of getFiles(coreFolder, coreRecursive))
-		await trySign(file)
+	// Read inputs dynamically to allow testing
+	const folder = getInput('folder')
+	const recursive = getInput('recursive') === 'true'
+	for await (const file of getFiles(folder, recursive)) await trySign(file)
 }
 
 /**
