@@ -137,9 +137,10 @@ export async function trySign(file: string): Promise<boolean> {
 				if (certDesc !== '') signArgs.push('/d', certDesc)
 				signArgs.push(file)
 
-				const signCommand = `"${signtool}" ${signArgs.map(arg => `"${arg}"`).join(' ')}`
-				info(`signing file: ${file}\nCommand: ${signCommand}`)
-				const signCommandResult = await execAsync(signCommand)
+				info(
+					`signing file: ${file}\nArguments: ${[signtool, ...signArgs].join(' ')}`
+				)
+				const signCommandResult = await execFileAsync(signtool, signArgs)
 				info(signCommandResult.stdout)
 				const verifyCommand = `"${signtool}" verify /pa "${file}"`
 				info(`verifying signing for file: ${file}\nCommand: ${verifyCommand}`)
