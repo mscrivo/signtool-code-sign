@@ -20,8 +20,75 @@ export function setExecAsync(fn: ExecFn): void {
 
 // Internal paths
 const certPath = `${env['TEMP']}\\certificate.pfx`
-const signtool =
-	'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe'
+
+/**
+ * Find the latest available signtool.exe from Windows SDK installations.
+ */
+async function findSigntool(): Promise<string> {
+	const sdkBasePath = 'C:/Program Files (x86)/Windows Kits/10/bin'
+
+	try {
+		// Read all directories in the SDK bin path
+		const versions = await promises.readdir(sdkBasePath)
+
+		// Filter for version directories (e.g., "10.0.17763.0", "10.0.19041.0")
+		const versionDirs = versions.filter(dir => /^\d+\.\d+\.\d+\.\d+$/.test(dir))
+
+		if (versionDirs.length === 0) {
+			throw new Error('No Windows SDK versions found')
+		}
+
+		// Sort versions in descending order to get the latest
+		versionDirs.sort((a, b) => {
+			const aParts = a.split('.').map(Number)
+			const bParts = b.split('.').map(Number)
+
+			for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+				const aVal = aParts[i] || 0
+				const bVal = bParts[i] || 0
+				if (aVal !== bVal) {
+					return bVal - aVal // Descending order
+				}
+			}
+			return 0
+		})
+
+		// Try each version until we find a working signtool.exe
+		for (const version of versionDirs) {
+			const signtoolPath = `${sdkBasePath}/${version}/x86/signtool.exe`
+			try {
+				await promises.stat(signtoolPath)
+				return signtoolPath
+			} catch {
+				// File doesn't exist, try next version
+				continue
+			}
+		}
+
+		throw new Error('No accessible signtool.exe found in any SDK version')
+	} catch (error) {
+		// Fallback to hardcoded path if dynamic discovery fails
+		const fallbackPath =
+			'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe'
+		core_error(`signtool discovery failed: ${error.message}`)
+		return fallbackPath
+	}
+}
+
+// Cache the signtool path to avoid repeated filesystem searches
+let signtoolPath: string | null = null
+
+async function getSigntoolPath(): Promise<string> {
+	if (!signtoolPath) {
+		signtoolPath = await findSigntool()
+	}
+	return signtoolPath
+}
+
+// Test helper to inject mock signtool path
+export function setSigntoolPath(toolPath: string): void {
+	signtoolPath = toolPath
+}
 
 // Inputs (used in various functions)
 const coreBase64cert = getInput('certificate')
@@ -133,6 +200,7 @@ export async function trySign(file: string): Promise<boolean> {
 		await wait(i)
 		if (supportedFileExt.includes(ext)) {
 			try {
+				const signtool = await getSigntoolPath()
 				const signArgs = ['sign', '/sm', '/t', timestampServer, '/sha1', sha1]
 				if (certDesc !== '') signArgs.push('/d', certDesc)
 				signArgs.push(file)

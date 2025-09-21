@@ -59,7 +59,8 @@ import {
 	getFiles,
 	signFiles,
 	run,
-	setExecAsync
+	setExecAsync,
+	setSigntoolPath
 } from '../src/main'
 
 function setInputs(over: Record<string, string>): void {
@@ -91,6 +92,9 @@ describe('main minimal (mocked core)', () => {
 
 		// Set up a default execAsync mock (can be overridden in individual tests)
 		setExecAsync(async () => ({stdout: 'ok', stderr: ''}))
+
+		// Set a mock signtool path to avoid filesystem operations during tests
+		setSigntoolPath('C:/MockedSigntool/signtool.exe')
 	})
 
 	it('validateInputs success', async () => {
