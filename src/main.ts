@@ -55,10 +55,12 @@ async function findSigntool(): Promise<string> {
 
 		// Try each version until we find a working signtool.exe
 		for (const version of versionDirs) {
+			// eslint-disable-next-line i18n-text/no-en
 			info(`Checking for signtool in SDK version: ${version}`)
 			const signtoolPath = `${sdkBasePath}/${version}/x86/signtool.exe`
 			try {
 				await promises.stat(signtoolPath)
+				// eslint-disable-next-line i18n-text/no-en
 				info(`Found signtool at: ${signtoolPath}`)
 				return signtoolPath
 			} catch {
