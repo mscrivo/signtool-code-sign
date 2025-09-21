@@ -1,4 +1,4 @@
-import {getInput, error as core_error, info, setFailed} from '@actions/core'
+import {getInput, error as log_error, info, setFailed} from '@actions/core'
 import {exec, execFile} from 'child_process'
 import {promises} from 'fs'
 import path from 'path'
@@ -55,11 +55,14 @@ async function findSigntool(): Promise<string> {
 
 		// Try each version until we find a working signtool.exe
 		for (const version of versionDirs) {
+			info(`Checking for signtool in SDK version: ${version}`)
 			const signtoolPath = `${sdkBasePath}/${version}/x86/signtool.exe`
 			try {
 				await promises.stat(signtoolPath)
+				info(`Found signtool at: ${signtoolPath}`)
 				return signtoolPath
 			} catch {
+				info(`signtool not found at: ${signtoolPath}`)
 				// File doesn't exist, try next version
 				continue
 			}
@@ -70,7 +73,7 @@ async function findSigntool(): Promise<string> {
 		// Fallback to hardcoded path if dynamic discovery fails
 		const fallbackPath =
 			'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe'
-		core_error(`signtool discovery failed: ${error.message}`)
+		log_error(`signtool discovery failed: ${error.message}`)
 		return fallbackPath
 	}
 }
@@ -122,19 +125,19 @@ export function validateInputs(): boolean {
 	const password = getInput('cert-password')
 	const sha1 = getInput('cert-sha1')
 	if (folder.length === 0) {
-		core_error('folder input must have a value.')
+		log_error('folder input must have a value.')
 		return false
 	}
 	if (base64cert.length === 0) {
-		core_error('certificate input must have a value.')
+		log_error('certificate input must have a value.')
 		return false
 	}
 	if (password.length === 0) {
-		core_error('cert-password input must have a value.')
+		log_error('cert-password input must have a value.')
 		return false
 	}
 	if (sha1.length === 0) {
-		core_error('cert-sha1 input must have a value.')
+		log_error('cert-sha1 input must have a value.')
 		return false
 	}
 	return true
@@ -178,8 +181,8 @@ export async function addCertToStore(): Promise<boolean> {
 
 		return true
 	} catch (error) {
-		core_error(error.stdout)
-		core_error(error.stderr)
+		log_error(error.stdout)
+		log_error(error.stderr)
 		return false
 	}
 }
@@ -221,7 +224,7 @@ export async function trySign(file: string): Promise<boolean> {
 
 				return true
 			} catch (error) {
-				core_error(error.stderr)
+				log_error(error.stderr)
 			}
 		}
 	}
