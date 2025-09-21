@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import {error, setFailed} from '@actions/core'
 
 // Global test inputs object
@@ -89,6 +88,9 @@ describe('main minimal (mocked core)', () => {
 
 		// Set up execFile mock to succeed by default
 		execFileMock.mockResolvedValue({stdout: 'verified', stderr: ''})
+
+		// Set up a default execAsync mock (can be overridden in individual tests)
+		setExecAsync(async () => ({stdout: 'ok', stderr: ''}))
 	})
 
 	it('validateInputs success', async () => {
@@ -209,15 +211,20 @@ describe('main minimal (mocked core)', () => {
 			isFile: () => true,
 			isDirectory: () => false
 		}))
+
 		const execCalls: string[] = []
 		setExecAsync(async (cmd: string) => {
 			execCalls.push(cmd)
 			return {stdout: 'ok', stderr: ''}
 		})
+
 		await signFiles()
+
 		// Each file should be signed once (no retries since both exec calls succeed)
-		expect(execCalls.filter(c => c.includes('sign '))).toHaveLength(2)
+		expect(execCalls.filter(c => c.includes('"sign"'))).toHaveLength(2)
 		expect(execFileMock).toHaveBeenCalledTimes(2) // verify calls
+		// Also check that readdir was called with the expected folder
+		expect(readdirMock).toHaveBeenCalledWith('folder')
 	})
 
 	it('run orchestrates success path', async () => {
@@ -234,7 +241,7 @@ describe('main minimal (mocked core)', () => {
 			return {stdout: 'ok', stderr: ''}
 		})
 		await run()
-		expect(execCalls.some(c => c.includes('sign '))).toBe(true)
+		expect(execCalls.some(c => c.includes('"sign"'))).toBe(true)
 		expect(execFileMock).toHaveBeenCalled() // verify was called
 	})
 
@@ -255,7 +262,7 @@ describe('main minimal (mocked core)', () => {
 		})
 		await run()
 		// Signing should not have occurred
-		expect(execCalls.some(c => c.includes('sign '))).toBe(false)
+		expect(execCalls.some(c => c.includes('"sign"'))).toBe(false)
 	})
 
 	it('run handles createCert write error and calls setFailed', async () => {
