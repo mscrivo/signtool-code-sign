@@ -60,7 +60,8 @@ import {
 	signFiles,
 	run,
 	setExecAsync,
-	setSigntoolPath
+	setSigntoolPath,
+	setSigntoolInfo
 } from '../src/main'
 
 function setInputs(over: Record<string, string>): void {
@@ -199,6 +200,55 @@ describe('main minimal (mocked core)', () => {
 		const file = 'C:/t/file.exe'
 		await expect(trySign(file)).resolves.toBe(false)
 		expect(callCount).toBe(5) // Should have tried signing 5 times
+	})
+
+	it('trySign adds /fd sha1 for signtool version 10.0.26100.0 and later', async () => {
+		setInputs({})
+
+		// Set signtool version to 10.0.26100.0 (should include /fd sha1)
+		setSigntoolInfo({
+			path: 'C:/test/signtool.exe',
+			version: '10.0.26100.0'
+		})
+
+		const execFileCalls: Array<{tool: string; args: string[]}> = []
+		execFileMock.mockImplementation(async (tool: string, args: string[]) => {
+			execFileCalls.push({tool, args})
+			return {stdout: 'verified', stderr: ''}
+		})
+
+		const file = 'C:/test/file.dll'
+		await expect(trySign(file)).resolves.toBe(true)
+
+		// Check that the signing call includes /fd sha1
+		const signingCall = execFileCalls.find(call => call.args.includes('sign'))
+		expect(signingCall).toBeDefined()
+		expect(signingCall?.args).toContain('/fd')
+		expect(signingCall?.args).toContain('sha1')
+	})
+
+	it('trySign does not add /fd sha1 for signtool version before 10.0.26100.0', async () => {
+		setInputs({})
+
+		// Set signtool version to 10.0.17763.0 (should not include /fd sha1)
+		setSigntoolInfo({
+			path: 'C:/test/signtool.exe',
+			version: '10.0.17763.0'
+		})
+
+		const execFileCalls: Array<{tool: string; args: string[]}> = []
+		execFileMock.mockImplementation(async (tool: string, args: string[]) => {
+			execFileCalls.push({tool, args})
+			return {stdout: 'verified', stderr: ''}
+		})
+
+		const file = 'C:/test/file.dll'
+		await expect(trySign(file)).resolves.toBe(true)
+
+		// Check that the signing call does not include /fd sha1
+		const signingCall = execFileCalls.find(call => call.args.includes('sign'))
+		expect(signingCall).toBeDefined()
+		expect(signingCall?.args).not.toContain('/fd')
 	})
 
 	it('getFiles yields supported and .nupkg recursively', async () => {

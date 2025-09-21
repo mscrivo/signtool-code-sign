@@ -46,6 +46,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.setExecAsync = setExecAsync;
 exports.setSigntoolPath = setSigntoolPath;
+exports.setSigntoolInfo = setSigntoolInfo;
 exports.validateInputs = validateInputs;
 exports.wait = wait;
 exports.createCert = createCert;
@@ -104,7 +105,7 @@ function findSigntool() {
                     yield fs_1.promises.stat(signtoolPath);
                     // eslint-disable-next-line i18n-text/no-en
                     (0, core_1.info)(`Found signtool at: ${signtoolPath}`);
-                    return signtoolPath;
+                    return { path: signtoolPath, version };
                 }
                 catch (_a) {
                     (0, core_1.info)(`signtool not found at: ${signtoolPath}`);
@@ -117,24 +118,45 @@ function findSigntool() {
         catch (error) {
             // Fallback to hardcoded path if dynamic discovery fails
             const fallbackPath = 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe';
+            const fallbackVersion = '10.0.17763.0';
             (0, core_1.error)(`signtool discovery failed: ${error.message}`);
-            return fallbackPath;
+            return { path: fallbackPath, version: fallbackVersion };
         }
     });
 }
-// Cache the signtool path to avoid repeated filesystem searches
-let signtoolPath = null;
-function getSigntoolPath() {
+// Cache the signtool info to avoid repeated filesystem searches
+let signtoolInfo = null;
+function getSigntoolInfo() {
     return __awaiter(this, void 0, void 0, function* () {
-        if (!signtoolPath) {
-            signtoolPath = yield findSigntool();
+        if (!signtoolInfo) {
+            signtoolInfo = yield findSigntool();
         }
-        return signtoolPath;
+        return signtoolInfo;
     });
 }
-// Test helper to inject mock signtool path
+/**
+ * Check if the signtool version requires /fd sha1 argument.
+ * Returns true for version 10.0.26100.0 and later.
+ */
+function requiresFdSha1(version) {
+    const versionParts = version.split('.').map(Number);
+    const targetVersion = [10, 0, 26100, 0];
+    for (let i = 0; i < Math.max(versionParts.length, targetVersion.length); i++) {
+        const versionVal = versionParts[i] || 0;
+        const targetVal = targetVersion[i] || 0;
+        if (versionVal > targetVal)
+            return true;
+        if (versionVal < targetVal)
+            return false;
+    }
+    return true; // Equal versions require the argument
+}
+// Test helper to inject mock signtool info
 function setSigntoolPath(toolPath) {
-    signtoolPath = toolPath;
+    signtoolInfo = { path: toolPath, version: '10.0.17763.0' }; // Default test version
+}
+function setSigntoolInfo(toolInfo) {
+    signtoolInfo = toolInfo;
 }
 // Inputs (used in various functions)
 const coreBase64cert = (0, core_1.getInput)('certificate');
@@ -239,12 +261,17 @@ function trySign(file) {
         const timestampServer = (0, core_1.getInput)('timestamp-server');
         const sha1 = (0, core_1.getInput)('cert-sha1');
         const certDesc = (0, core_1.getInput)('cert-description');
-        const signtool = yield getSigntoolPath();
+        const toolInfo = yield getSigntoolInfo();
+        const signtool = toolInfo.path;
         for (let i = 0; i < 5; i++) {
             yield wait(i);
             if (supportedFileExt.includes(ext)) {
                 try {
                     const signArgs = ['sign', '/sm', '/t', timestampServer, '/sha1', sha1];
+                    // Add /fd sha1 for signtool version 10.0.26100.0 and later
+                    if (requiresFdSha1(toolInfo.version)) {
+                        signArgs.push('/fd', 'sha1');
+                    }
                     if (certDesc !== '')
                         signArgs.push('/d', certDesc);
                     signArgs.push(file);

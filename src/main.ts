@@ -21,10 +21,15 @@ export function setExecAsync(fn: ExecFn): void {
 // Internal paths
 const certPath = `${env['TEMP']}\\certificate.pfx`
 
+interface SigntoolInfo {
+	path: string
+	version: string
+}
+
 /**
  * Find the latest available signtool.exe from Windows SDK installations.
  */
-async function findSigntool(): Promise<string> {
+async function findSigntool(): Promise<SigntoolInfo> {
 	const sdkBasePath = 'C:/Program Files (x86)/Windows Kits/10/bin'
 
 	try {
@@ -62,7 +67,7 @@ async function findSigntool(): Promise<string> {
 				await promises.stat(signtoolPath)
 				// eslint-disable-next-line i18n-text/no-en
 				info(`Found signtool at: ${signtoolPath}`)
-				return signtoolPath
+				return {path: signtoolPath, version}
 			} catch {
 				info(`signtool not found at: ${signtoolPath}`)
 				// File doesn't exist, try next version
@@ -75,24 +80,52 @@ async function findSigntool(): Promise<string> {
 		// Fallback to hardcoded path if dynamic discovery fails
 		const fallbackPath =
 			'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe'
+		const fallbackVersion = '10.0.17763.0'
 		log_error(`signtool discovery failed: ${error.message}`)
-		return fallbackPath
+		return {path: fallbackPath, version: fallbackVersion}
 	}
 }
 
-// Cache the signtool path to avoid repeated filesystem searches
-let signtoolPath: string | null = null
+// Cache the signtool info to avoid repeated filesystem searches
+let signtoolInfo: SigntoolInfo | null = null
 
-async function getSigntoolPath(): Promise<string> {
-	if (!signtoolPath) {
-		signtoolPath = await findSigntool()
+async function getSigntoolInfo(): Promise<SigntoolInfo> {
+	if (!signtoolInfo) {
+		signtoolInfo = await findSigntool()
 	}
-	return signtoolPath
+	return signtoolInfo
 }
 
-// Test helper to inject mock signtool path
+/**
+ * Check if the signtool version requires /fd <sha1|sha256> flag.
+ * Returns true for version 10.0.26100.0 and later.
+ */
+function requiresFdFlag(version: string): boolean {
+	const versionParts = version.split('.').map(Number)
+	const targetVersion = [10, 0, 26100, 0]
+
+	for (
+		let i = 0;
+		i < Math.max(versionParts.length, targetVersion.length);
+		i++
+	) {
+		const versionVal = versionParts[i] || 0
+		const targetVal = targetVersion[i] || 0
+
+		if (versionVal > targetVal) return true
+		if (versionVal < targetVal) return false
+	}
+
+	return true // Equal versions require the argument
+}
+
+// Test helper to inject mock signtool info
 export function setSigntoolPath(toolPath: string): void {
-	signtoolPath = toolPath
+	signtoolInfo = {path: toolPath, version: '10.0.17763.0'} // Default test version
+}
+
+export function setSigntoolInfo(toolInfo: SigntoolInfo): void {
+	signtoolInfo = toolInfo
 }
 
 // Inputs (used in various functions)
@@ -201,13 +234,20 @@ export async function trySign(file: string): Promise<boolean> {
 	const sha1 = getInput('cert-sha1')
 	const certDesc = getInput('cert-description')
 
-	const signtool = await getSigntoolPath()
+	const toolInfo = await getSigntoolInfo()
+	const signtool = toolInfo.path
 
 	for (let i = 0; i < 5; i++) {
 		await wait(i)
 		if (supportedFileExt.includes(ext)) {
 			try {
 				const signArgs = ['sign', '/sm', '/t', timestampServer, '/sha1', sha1]
+
+				// Add /fd sha1 for signtool version 10.0.26100.0 and later
+				if (requiresFdFlag(toolInfo.version)) {
+					signArgs.push('/fd', 'sha1')
+				}
+
 				if (certDesc !== '') signArgs.push('/d', certDesc)
 				signArgs.push(file)
 
