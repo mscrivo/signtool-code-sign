@@ -89,7 +89,28 @@ To publish a new version of this action:
    git commit -m "Release version x.x.x"
    ```
 
-4. **Create a Github release**
+4. **Create and push a new version tag**:
+
+   ```bash
+   git tag -a v1.x.x -m "Release version 1.x.x"
+   git push origin v1.x.x
+   ```
+
+5. **Update the major version tag** to point to the latest release:
+
+   ```bash
+   git tag -fa v1 -m "Update v1 tag to point to v1.x.x"
+   git push origin v1 --force
+   ```
+
+   This ensures that users referencing `@v1` in their workflows will automatically get the latest v1.x.x release.
+
+6. **Create a GitHub release** (optional):
+   - Go to the repository on GitHub
+   - Click "Releases" → "Create a new release"
+   - Select the tag you just created (v1.x.x)
+   - Add release notes describing the changes
+   - Publish the release
 
 **Note**: Always run `npm run package` before creating a new release, as this ensures the `dist/` folder contains the latest compiled code that GitHub Actions will execute.
 
