@@ -44,25 +44,101 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.setExecAsync = setExecAsync;
+exports.setSigntoolPath = setSigntoolPath;
+exports.validateInputs = validateInputs;
+exports.wait = wait;
+exports.createCert = createCert;
+exports.addCertToStore = addCertToStore;
+exports.trySign = trySign;
+exports.signFiles = signFiles;
+exports.getFiles = getFiles;
+exports.run = run;
 const core_1 = __nccwpck_require__(7484);
 const child_process_1 = __nccwpck_require__(5317);
 const fs_1 = __nccwpck_require__(9896);
 const path_1 = __importDefault(__nccwpck_require__(6928));
 const process_1 = __nccwpck_require__(932);
 const util_1 = __importDefault(__nccwpck_require__(9023));
-// Exec
-const execAsync = util_1.default.promisify(child_process_1.exec);
+let execAsync = util_1.default.promisify(child_process_1.exec);
+const execFileAsync = util_1.default.promisify(child_process_1.execFile);
+function setExecAsync(fn) {
+    // test helper to inject mock implementation
+    execAsync = fn;
+}
 // Internal paths
 const certPath = `${process_1.env['TEMP']}\\certificate.pfx`;
-const signtool = 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe';
-// Inputs
-const coreFolder = (0, core_1.getInput)('folder');
-const coreRecursive = (0, core_1.getInput)('recursive') === 'true';
+/**
+ * Find the latest available signtool.exe from Windows SDK installations.
+ */
+function findSigntool() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const sdkBasePath = 'C:/Program Files (x86)/Windows Kits/10/bin';
+        try {
+            // Read all directories in the SDK bin path
+            const versions = yield fs_1.promises.readdir(sdkBasePath);
+            // Filter for version directories (e.g., "10.0.17763.0", "10.0.19041.0")
+            const versionDirs = versions.filter(dir => /^\d+\.\d+\.\d+\.\d+$/.test(dir));
+            if (versionDirs.length === 0) {
+                throw new Error('No Windows SDK versions found');
+            }
+            // Sort versions in descending order to get the latest
+            versionDirs.sort((a, b) => {
+                const aParts = a.split('.').map(Number);
+                const bParts = b.split('.').map(Number);
+                for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+                    const aVal = aParts[i] || 0;
+                    const bVal = bParts[i] || 0;
+                    if (aVal !== bVal) {
+                        return bVal - aVal; // Descending order
+                    }
+                }
+                return 0;
+            });
+            // Try each version until we find a working signtool.exe
+            for (const version of versionDirs) {
+                // eslint-disable-next-line i18n-text/no-en
+                (0, core_1.info)(`Checking for signtool in SDK version: ${version}`);
+                const signtoolPath = `${sdkBasePath}/${version}/x86/signtool.exe`;
+                try {
+                    yield fs_1.promises.stat(signtoolPath);
+                    // eslint-disable-next-line i18n-text/no-en
+                    (0, core_1.info)(`Found signtool at: ${signtoolPath}`);
+                    return signtoolPath;
+                }
+                catch (_a) {
+                    (0, core_1.info)(`signtool not found at: ${signtoolPath}`);
+                    // File doesn't exist, try next version
+                    continue;
+                }
+            }
+            throw new Error('No accessible signtool.exe found in any SDK version');
+        }
+        catch (error) {
+            // Fallback to hardcoded path if dynamic discovery fails
+            const fallbackPath = 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe';
+            (0, core_1.error)(`signtool discovery failed: ${error.message}`);
+            return fallbackPath;
+        }
+    });
+}
+// Cache the signtool path to avoid repeated filesystem searches
+let signtoolPath = null;
+function getSigntoolPath() {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (!signtoolPath) {
+            signtoolPath = yield findSigntool();
+        }
+        return signtoolPath;
+    });
+}
+// Test helper to inject mock signtool path
+function setSigntoolPath(toolPath) {
+    signtoolPath = toolPath;
+}
+// Inputs (used in various functions)
 const coreBase64cert = (0, core_1.getInput)('certificate');
 const corePassword = (0, core_1.getInput)('cert-password');
-const coreSha1 = (0, core_1.getInput)('cert-sha1');
-const coreTimestampServer = (0, core_1.getInput)('timestamp-server');
-const coreCertDesc = (0, core_1.getInput)('cert-description');
 // Supported files
 const supportedFileExt = [
     '.dll',
@@ -82,27 +158,27 @@ const supportedFileExt = [
 ];
 /**
  * Validate workflow inputs.
- *
  */
 function validateInputs() {
-    if (coreFolder.length === 0) {
+    // Fetch fresh values to allow dynamic testing
+    const folder = (0, core_1.getInput)('folder');
+    const base64cert = (0, core_1.getInput)('certificate');
+    const password = (0, core_1.getInput)('cert-password');
+    const sha1 = (0, core_1.getInput)('cert-sha1');
+    if (folder.length === 0) {
         (0, core_1.error)('folder input must have a value.');
         return false;
     }
-    if (coreBase64cert.length === 0) {
+    if (base64cert.length === 0) {
         (0, core_1.error)('certificate input must have a value.');
         return false;
     }
-    if (corePassword.length === 0) {
+    if (password.length === 0) {
         (0, core_1.error)('cert-password input must have a value.');
         return false;
     }
-    if (coreSha1.length === 0) {
+    if (sha1.length === 0) {
         (0, core_1.error)('cert-sha1 input must have a value.');
-        return false;
-    }
-    if (corePassword.length === 0) {
-        (0, core_1.error)('password must have a value.');
         return false;
     }
     return true;
@@ -113,6 +189,8 @@ function validateInputs() {
  * @param seconds amount of seconds to wait.
  */
 function wait(seconds) {
+    if (process.env.JEST_SKIP_WAIT)
+        return Promise.resolve();
     if (seconds > 0)
         (0, core_1.info)(`waiting for ${seconds} seconds.`);
     return new Promise(resolve => setTimeout(resolve, seconds * 1000));
@@ -157,25 +235,33 @@ function addCertToStore() {
 function trySign(file) {
     return __awaiter(this, void 0, void 0, function* () {
         const ext = path_1.default.extname(file);
+        // Read inputs dynamically to allow testing
+        const timestampServer = (0, core_1.getInput)('timestamp-server');
+        const sha1 = (0, core_1.getInput)('cert-sha1');
+        const certDesc = (0, core_1.getInput)('cert-description');
+        const signtool = yield getSigntoolPath();
         for (let i = 0; i < 5; i++) {
             yield wait(i);
             if (supportedFileExt.includes(ext)) {
                 try {
-                    let command = `"${signtool}" sign /sm /t ${coreTimestampServer} /sha1 "${coreSha1}"`;
-                    if (coreCertDesc !== '')
-                        command = command.concat(` /d "${coreCertDesc}"`);
-                    command = command.concat(` "${file}"`);
-                    (0, core_1.info)(`signing file: ${file}\nCommand: ${command}`);
-                    const signCommandResult = yield execAsync(command);
+                    const signArgs = ['sign', '/sm', '/t', timestampServer, '/sha1', sha1];
+                    if (certDesc !== '')
+                        signArgs.push('/d', certDesc);
+                    signArgs.push(file);
+                    (0, core_1.info)(`signing file: ${file}\nArguments: ${[signtool, ...signArgs].join(' ')}`);
+                    const signCommandResult = yield execFileAsync(signtool, signArgs);
                     (0, core_1.info)(signCommandResult.stdout);
                     const verifyCommand = `"${signtool}" verify /pa "${file}"`;
                     (0, core_1.info)(`verifying signing for file: ${file}\nCommand: ${verifyCommand}`);
-                    const verifyCommandResult = yield execAsync(verifyCommand);
+                    const verifyCommandResult = yield execFileAsync(signtool, [
+                        'verify',
+                        '/pa',
+                        file
+                    ]);
                     (0, core_1.info)(verifyCommandResult.stdout);
                     return true;
                 }
                 catch (error) {
-                    (0, core_1.error)(error.stderr);
                     (0, core_1.error)(error.stderr);
                 }
             }
@@ -190,8 +276,11 @@ function trySign(file) {
 function signFiles() {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, e_1, _b, _c;
+        // Read inputs dynamically to allow testing
+        const folder = (0, core_1.getInput)('folder');
+        const recursive = (0, core_1.getInput)('recursive') === 'true';
         try {
-            for (var _d = true, _e = __asyncValues(getFiles(coreFolder, coreRecursive)), _f; _f = yield _e.next(), _a = _f.done, !_a; _d = true) {
+            for (var _d = true, _e = __asyncValues(getFiles(folder, recursive)), _f; _f = yield _e.next(), _a = _f.done, !_a; _d = true) {
                 _c = _f.value;
                 _d = false;
                 const file = _c;
@@ -239,7 +328,20 @@ function run() {
         }
     });
 }
-run();
+// Only auto-run when not under Jest (so tests can import without side-effects)
+if (!process.env.JEST_WORKER_ID) {
+    run();
+}
+exports["default"] = {
+    validateInputs,
+    wait,
+    createCert,
+    addCertToStore,
+    trySign,
+    signFiles,
+    getFiles,
+    run
+};
 
 
 /***/ }),
@@ -9046,7 +9148,7 @@ module.exports = {
 
 
 const { parseSetCookie } = __nccwpck_require__(8915)
-const { stringify, getHeadersList } = __nccwpck_require__(3834)
+const { stringify } = __nccwpck_require__(3834)
 const { webidl } = __nccwpck_require__(4222)
 const { Headers } = __nccwpck_require__(6349)
 
@@ -9122,14 +9224,13 @@ function getSetCookies (headers) {
 
   webidl.brandCheck(headers, Headers, { strict: false })
 
-  const cookies = getHeadersList(headers).cookies
+  const cookies = headers.getSetCookie()
 
   if (!cookies) {
     return []
   }
 
-  // In older versions of undici, cookies is a list of name:value.
-  return cookies.map((pair) => parseSetCookie(Array.isArray(pair) ? pair[1] : pair))
+  return cookies.map((pair) => parseSetCookie(pair))
 }
 
 /**
@@ -9557,14 +9658,15 @@ module.exports = {
 /***/ }),
 
 /***/ 3834:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+/***/ ((module) => {
 
 "use strict";
 
 
-const assert = __nccwpck_require__(2613)
-const { kHeadersList } = __nccwpck_require__(6443)
-
+/**
+ * @param {string} value
+ * @returns {boolean}
+ */
 function isCTLExcludingHtab (value) {
   if (value.length === 0) {
     return false
@@ -9825,31 +9927,13 @@ function stringify (cookie) {
   return out.join('; ')
 }
 
-let kHeadersListNode
-
-function getHeadersList (headers) {
-  if (headers[kHeadersList]) {
-    return headers[kHeadersList]
-  }
-
-  if (!kHeadersListNode) {
-    kHeadersListNode = Object.getOwnPropertySymbols(headers).find(
-      (symbol) => symbol.description === 'headers list'
-    )
-
-    assert(kHeadersListNode, 'Headers cannot be parsed')
-  }
-
-  const headersList = headers[kHeadersListNode]
-  assert(headersList)
-
-  return headersList
-}
-
 module.exports = {
   isCTLExcludingHtab,
-  stringify,
-  getHeadersList
+  validateCookieName,
+  validateCookiePath,
+  validateCookieValue,
+  toIMFDate,
+  stringify
 }
 
 
@@ -13853,6 +13937,7 @@ const {
   isValidHeaderName,
   isValidHeaderValue
 } = __nccwpck_require__(5523)
+const util = __nccwpck_require__(9023)
 const { webidl } = __nccwpck_require__(4222)
 const assert = __nccwpck_require__(2613)
 
@@ -14406,6 +14491,9 @@ Object.defineProperties(Headers.prototype, {
   [Symbol.toStringTag]: {
     value: 'Headers',
     configurable: true
+  },
+  [util.inspect.custom]: {
+    enumerable: false
   }
 })
 
@@ -23582,6 +23670,20 @@ class Pool extends PoolBase {
       ? { ...options.interceptors }
       : undefined
     this[kFactory] = factory
+
+    this.on('connectionError', (origin, targets, error) => {
+      // If a connection error occurs, we remove the client from the pool,
+      // and emit a connectionError event. They will not be re-used.
+      // Fixes https://github.com/nodejs/undici/issues/3895
+      for (const target of targets) {
+        // Do not use kRemoveClient here, as it will close the client,
+        // but the client cannot be closed in this state.
+        const idx = this[kClients].indexOf(target)
+        if (idx !== -1) {
+          this[kClients].splice(idx, 1)
+        }
+      }
+    })
   }
 
   [kGetDispatcher] () {

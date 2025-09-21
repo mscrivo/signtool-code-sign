@@ -18,7 +18,7 @@ jobs:
           npm install
       - run: |
           npm run all
-  test:
+  test-signing:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
