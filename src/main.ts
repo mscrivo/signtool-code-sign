@@ -199,11 +199,12 @@ export async function trySign(file: string): Promise<boolean> {
 	const sha1 = getInput('cert-sha1')
 	const certDesc = getInput('cert-description')
 
+	const signtool = await getSigntoolPath()
+
 	for (let i = 0; i < 5; i++) {
 		await wait(i)
 		if (supportedFileExt.includes(ext)) {
 			try {
-				const signtool = await getSigntoolPath()
 				const signArgs = ['sign', '/sm', '/t', timestampServer, '/sha1', sha1]
 				if (certDesc !== '') signArgs.push('/d', certDesc)
 				signArgs.push(file)
