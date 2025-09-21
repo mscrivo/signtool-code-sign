@@ -135,10 +135,10 @@ function getSigntoolInfo() {
     });
 }
 /**
- * Check if the signtool version requires /fd sha1 argument.
+ * Check if the signtool version requires /fd <sha1|sha256> flag.
  * Returns true for version 10.0.26100.0 and later.
  */
-function requiresFdSha1(version) {
+function requiresFdFlag(version) {
     const versionParts = version.split('.').map(Number);
     const targetVersion = [10, 0, 26100, 0];
     for (let i = 0; i < Math.max(versionParts.length, targetVersion.length); i++) {
@@ -187,6 +187,7 @@ function validateInputs() {
     const base64cert = (0, core_1.getInput)('certificate');
     const password = (0, core_1.getInput)('cert-password');
     const sha1 = (0, core_1.getInput)('cert-sha1');
+    const sha256 = (0, core_1.getInput)('cert-sha256');
     if (folder.length === 0) {
         (0, core_1.error)('folder input must have a value.');
         return false;
@@ -199,8 +200,18 @@ function validateInputs() {
         (0, core_1.error)('cert-password input must have a value.');
         return false;
     }
-    if (sha1.length === 0) {
-        (0, core_1.error)('cert-sha1 input must have a value.');
+    // At least one thumbprint must be provided
+    if (sha1.length === 0 && sha256.length === 0) {
+        // eslint-disable-next-line i18n-text/no-en
+        (0, core_1.error)('Either cert-sha1 or cert-sha256 input must have a value.');
+        return false;
+    }
+    // Both thumbprints cannot be provided at the same time
+    if (sha1.length > 0 && sha256.length > 0) {
+        // eslint-disable-next-line i18n-text/no-en
+        (0, core_1.error)(
+        // eslint-disable-next-line i18n-text/no-en
+        'Cannot use both cert-sha1 and cert-sha256 at the same time. Choose one.');
         return false;
     }
     return true;
@@ -260,6 +271,7 @@ function trySign(file) {
         // Read inputs dynamically to allow testing
         const timestampServer = (0, core_1.getInput)('timestamp-server');
         const sha1 = (0, core_1.getInput)('cert-sha1');
+        const sha256 = (0, core_1.getInput)('cert-sha256');
         const certDesc = (0, core_1.getInput)('cert-description');
         const toolInfo = yield getSigntoolInfo();
         const signtool = toolInfo.path;
@@ -267,10 +279,19 @@ function trySign(file) {
             yield wait(i);
             if (supportedFileExt.includes(ext)) {
                 try {
-                    const signArgs = ['sign', '/sm', '/t', timestampServer, '/sha1', sha1];
-                    // Add /fd sha1 for signtool version 10.0.26100.0 and later
-                    if (requiresFdSha1(toolInfo.version)) {
-                        signArgs.push('/fd', 'sha1');
+                    const signArgs = ['sign', '/sm', '/t', timestampServer];
+                    // Use SHA256 if provided, otherwise use SHA1
+                    if (sha256.length > 0) {
+                        signArgs.push('/sha256', sha256);
+                        // For SHA256, we need to specify the file digest algorithm
+                        signArgs.push('/fd', 'sha256');
+                    }
+                    else {
+                        signArgs.push('/sha1', sha1);
+                        // Add /fd sha1 for signtool version 10.0.26100.0 and later when using SHA1
+                        if (requiresFdFlag(toolInfo.version)) {
+                            signArgs.push('/fd', 'sha1');
+                        }
                     }
                     if (certDesc !== '')
                         signArgs.push('/d', certDesc);
