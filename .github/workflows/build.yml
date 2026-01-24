@@ -14,10 +14,16 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
-      - run: |
-          npm install
-      - run: |
-          npm run all
+      - run: npm install
+      - run: npm run build && npm run format && npm run lint && npm run package
+      - run: npm test -- --coverage --coverageReporters=text-summary
+      - name: Add coverage to summary
+        if: always()
+        run: |
+          echo "## Test Coverage" >> $env:GITHUB_STEP_SUMMARY
+          echo '```' >> $env:GITHUB_STEP_SUMMARY
+          npm test -- --coverage --coverageReporters=text-summary 2>&1 | Select-String -Pattern "Statements|Branches|Functions|Lines|All files" >> $env:GITHUB_STEP_SUMMARY
+          echo '```' >> $env:GITHUB_STEP_SUMMARY
   test-signing:
     runs-on: windows-latest
     steps:
