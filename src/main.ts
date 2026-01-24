@@ -281,13 +281,26 @@ export async function trySign(file: string): Promise<boolean> {
 
 /**
  * Sign all files in folder, this is done recursively if recursive == 'true'
- *
+ * Returns true if all files were signed successfully, false if any failed.
  */
-export async function signFiles(): Promise<void> {
+export async function signFiles(): Promise<boolean> {
 	// Read inputs dynamically to allow testing
 	const folder = getInput('folder')
 	const recursive = getInput('recursive') === 'true'
-	for await (const file of getFiles(folder, recursive)) await trySign(file)
+	let allSucceeded = true
+	let fileCount = 0
+	for await (const file of getFiles(folder, recursive)) {
+		fileCount++
+		const success = await trySign(file)
+		if (!success) {
+			allSucceeded = false
+		}
+	}
+	if (fileCount === 0) {
+		// eslint-disable-next-line i18n-text/no-en
+		info('No files found to sign')
+	}
+	return allSucceeded
 }
 
 /**
@@ -312,10 +325,33 @@ export async function* getFiles(
 
 export async function run(): Promise<void> {
 	try {
-		validateInputs()
-		if ((await createCert()) && (await addCertToStore())) await signFiles()
+		if (!validateInputs()) {
+			// eslint-disable-next-line i18n-text/no-en
+			setFailed('Code signing failed: Invalid inputs')
+			return
+		}
+		if (!(await createCert())) {
+			// eslint-disable-next-line i18n-text/no-en
+			setFailed('Code signing failed: Could not create certificate file')
+			return
+		}
+		if (!(await addCertToStore())) {
+			setFailed(
+				// eslint-disable-next-line i18n-text/no-en
+				'Code signing failed: Could not import certificate to store. The certificate may be invalid, expired, or the password may be incorrect.'
+			)
+			return
+		}
+		const success = await signFiles()
+		if (!success) {
+			setFailed(
+				// eslint-disable-next-line i18n-text/no-en
+				'Code signing failed: One or more files could not be signed. Check the logs for details.'
+			)
+		}
 	} catch (error) {
-		setFailed(`code Signing failed\nError: ${error}`)
+		// eslint-disable-next-line i18n-text/no-en
+		setFailed(`Code signing failed\nError: ${error}`)
 	}
 }
 

@@ -296,8 +296,9 @@ describe('main minimal (mocked core)', () => {
 			return {stdout: 'ok', stderr: ''}
 		})
 
-		await signFiles()
+		const result = await signFiles()
 
+		expect(result).toBe(true)
 		// Each file should be signed and verified (4 total calls: 2 sign + 2 verify)
 		expect(
 			execFileCalls.filter(call => call.args.includes('sign'))
@@ -353,13 +354,73 @@ describe('main minimal (mocked core)', () => {
 		expect(execCalls.some(c => c.includes('"sign"'))).toBe(false)
 	})
 
+	it('run fails when signing fails', async () => {
+		setInputs({recursive: 'true'})
+		readdirMock.mockResolvedValue(['a.dll'])
+		statMock.mockImplementation(() => ({
+			isFile: () => true,
+			isDirectory: () => false
+		}))
+		writeFileMock.mockResolvedValue(undefined)
+
+		// Mock execFile to fail on signing
+		execFileMock.mockImplementation(async (tool: string, args: string[]) => {
+			if (args.includes('sign')) {
+				const err = new Error('No certificates found') as Error & {
+					stderr: string
+					stdout: string
+				}
+				err.stderr = 'SignTool Error: No certificates were found'
+				err.stdout = ''
+				throw err
+			}
+			return {stdout: 'ok', stderr: ''}
+		})
+
+		await run()
+
+		const sf = setFailed as jest.Mock
+		expect(sf.mock.calls.flat().join(' ')).toContain(
+			'One or more files could not be signed'
+		)
+	})
+
 	it('run handles createCert write error and calls setFailed', async () => {
 		setInputs({})
 		// Force write failure
 		writeFileMock.mockRejectedValue(new Error('disk full'))
 		await run()
 		const sf = setFailed as jest.Mock
-		expect(sf.mock.calls.flat().join(' ')).toContain('code Signing failed')
+		expect(sf.mock.calls.flat().join(' ')).toContain('Code signing failed')
+	})
+
+	it('run fails when validateInputs returns false', async () => {
+		setInputs({folder: ''}) // Invalid - missing folder
+		await run()
+		const sf = setFailed as jest.Mock
+		expect(sf).toHaveBeenCalledWith('Code signing failed: Invalid inputs')
+	})
+
+	it('run fails when addCertToStore fails with helpful message', async () => {
+		setInputs({})
+		writeFileMock.mockResolvedValue(undefined)
+		setExecAsync(async (cmd: string) => {
+			if (cmd.startsWith('certutil')) {
+				const err = new Error('import failed') as Error & {
+					stdout: string
+					stderr: string
+				}
+				err.stdout = 'CertUtil: -importPFX command FAILED'
+				err.stderr = ''
+				throw err
+			}
+			return {stdout: 'ok', stderr: ''}
+		})
+		await run()
+		const sf = setFailed as jest.Mock
+		expect(sf.mock.calls.flat().join(' ')).toContain(
+			'Could not import certificate to store'
+		)
 	})
 
 	describe('findSigntool', () => {
@@ -390,7 +451,8 @@ describe('main minimal (mocked core)', () => {
 			readdirMock.mockResolvedValue(['10.0.19041.0', '10.0.17763.0'])
 			statMock.mockImplementation((p: string) => {
 				// Latest version missing, but older version exists
-				if (p.includes('10.0.19041.0')) return Promise.reject(new Error('not found'))
+				if (p.includes('10.0.19041.0'))
+					return Promise.reject(new Error('not found'))
 				if (p.includes('10.0.17763.0')) return Promise.resolve({})
 				return Promise.reject(new Error('not found'))
 			})
@@ -427,7 +489,10 @@ describe('main minimal (mocked core)', () => {
 	describe('addCertToStore', () => {
 		it('successfully adds certificate to store', async () => {
 			setInputs({})
-			setExecAsync(async () => ({stdout: 'CertUtil: -importpfx command completed successfully.', stderr: ''}))
+			setExecAsync(async () => ({
+				stdout: 'CertUtil: -importpfx command completed successfully.',
+				stderr: ''
+			}))
 
 			const result = await addCertToStore()
 			expect(result).toBe(true)
@@ -442,8 +507,10 @@ describe('main minimal (mocked core)', () => {
 				return []
 			})
 			statMock.mockImplementation((p: string) => {
-				if (p === 'folder/sub') return {isFile: () => false, isDirectory: () => true}
-				if (p === 'folder/a.dll') return {isFile: () => true, isDirectory: () => false}
+				if (p === 'folder/sub')
+					return {isFile: () => false, isDirectory: () => true}
+				if (p === 'folder/a.dll')
+					return {isFile: () => true, isDirectory: () => false}
 				return {isFile: () => false, isDirectory: () => false}
 			})
 
