@@ -29,7 +29,7 @@ interface SigntoolInfo {
 /**
  * Find the latest available signtool.exe from Windows SDK installations.
  */
-async function findSigntool(): Promise<SigntoolInfo> {
+export async function findSigntool(): Promise<SigntoolInfo> {
 	const sdkBasePath = 'C:/Program Files (x86)/Windows Kits/10/bin'
 
 	try {
@@ -88,6 +88,11 @@ async function findSigntool(): Promise<SigntoolInfo> {
 
 // Cache the signtool info to avoid repeated filesystem searches
 let signtoolInfo: SigntoolInfo | null = null
+
+// Test helper to reset signtool cache
+export function resetSigntoolCache(): void {
+	signtoolInfo = null
+}
 
 async function getSigntoolInfo(): Promise<SigntoolInfo> {
 	if (!signtoolInfo) {

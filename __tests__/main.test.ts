@@ -61,7 +61,10 @@ import {
 	run,
 	setExecAsync,
 	setSigntoolPath,
-	setSigntoolInfo
+	setSigntoolInfo,
+	findSigntool,
+	resetSigntoolCache,
+	addCertToStore
 } from '../src/main'
 
 function setInputs(over: Record<string, string>): void {
@@ -357,5 +360,133 @@ describe('main minimal (mocked core)', () => {
 		await run()
 		const sf = setFailed as jest.Mock
 		expect(sf.mock.calls.flat().join(' ')).toContain('code Signing failed')
+	})
+
+	describe('findSigntool', () => {
+		beforeEach(() => {
+			resetSigntoolCache()
+		})
+
+		it('finds latest signtool version from multiple SDK versions', async () => {
+			// Mock readdir to return multiple SDK versions
+			readdirMock.mockResolvedValue([
+				'10.0.17763.0',
+				'10.0.19041.0',
+				'10.0.22000.0',
+				'invalid-dir'
+			])
+			// Mock stat to succeed for the latest version
+			statMock.mockImplementation((p: string) => {
+				if (p.includes('10.0.22000.0')) return Promise.resolve({})
+				return Promise.reject(new Error('not found'))
+			})
+
+			const result = await findSigntool()
+			expect(result.version).toBe('10.0.22000.0')
+			expect(result.path).toContain('10.0.22000.0')
+		})
+
+		it('falls back to next version when latest signtool not found', async () => {
+			readdirMock.mockResolvedValue(['10.0.19041.0', '10.0.17763.0'])
+			statMock.mockImplementation((p: string) => {
+				// Latest version missing, but older version exists
+				if (p.includes('10.0.19041.0')) return Promise.reject(new Error('not found'))
+				if (p.includes('10.0.17763.0')) return Promise.resolve({})
+				return Promise.reject(new Error('not found'))
+			})
+
+			const result = await findSigntool()
+			expect(result.version).toBe('10.0.17763.0')
+		})
+
+		it('returns fallback path when no SDK versions found', async () => {
+			readdirMock.mockResolvedValue(['not-a-version', 'also-invalid'])
+
+			const result = await findSigntool()
+			expect(result.path).toContain('10.0.17763.0')
+			expect(result.version).toBe('10.0.17763.0')
+		})
+
+		it('returns fallback path when readdir fails', async () => {
+			readdirMock.mockRejectedValue(new Error('ENOENT'))
+
+			const result = await findSigntool()
+			expect(result.path).toContain('10.0.17763.0')
+			expect(result.version).toBe('10.0.17763.0')
+		})
+
+		it('returns fallback when no signtool found in any version', async () => {
+			readdirMock.mockResolvedValue(['10.0.19041.0', '10.0.17763.0'])
+			statMock.mockRejectedValue(new Error('not found'))
+
+			const result = await findSigntool()
+			expect(result.path).toContain('10.0.17763.0')
+		})
+	})
+
+	describe('addCertToStore', () => {
+		it('successfully adds certificate to store', async () => {
+			setInputs({})
+			setExecAsync(async () => ({stdout: 'CertUtil: -importpfx command completed successfully.', stderr: ''}))
+
+			const result = await addCertToStore()
+			expect(result).toBe(true)
+		})
+	})
+
+	describe('getFiles non-recursive', () => {
+		it('yields files only from top-level folder when recursive is false', async () => {
+			readdirMock.mockImplementation((dir: string) => {
+				if (dir === 'folder') return ['a.dll', 'sub']
+				if (dir === 'folder/sub') return ['inner.exe']
+				return []
+			})
+			statMock.mockImplementation((p: string) => {
+				if (p === 'folder/sub') return {isFile: () => false, isDirectory: () => true}
+				if (p === 'folder/a.dll') return {isFile: () => true, isDirectory: () => false}
+				return {isFile: () => false, isDirectory: () => false}
+			})
+
+			const collected: string[] = []
+			for await (const f of getFiles('folder', false)) collected.push(f)
+
+			// Should only get top-level file, not recurse into sub
+			expect(collected).toEqual(['folder/a.dll'])
+			expect(collected).not.toContain('folder/sub/inner.exe')
+		})
+	})
+
+	describe('trySign with unsupported files', () => {
+		it('skips unsupported file extensions and returns false', async () => {
+			setInputs({})
+
+			const execFileCalls: Array<{tool: string; args: string[]}> = []
+			execFileMock.mockImplementation(async (tool: string, args: string[]) => {
+				execFileCalls.push({tool, args})
+				return {stdout: 'ok', stderr: ''}
+			})
+
+			// .txt is not a supported extension
+			const result = await trySign('C:/test/file.txt')
+
+			expect(result).toBe(false)
+			// Should not have called signtool at all
+			expect(execFileCalls).toHaveLength(0)
+		})
+
+		it('signs all supported file extensions', async () => {
+			setInputs({})
+
+			const supportedExts = ['.dll', '.exe', '.sys', '.msi', '.ps1', '.psm1']
+
+			for (const ext of supportedExts) {
+				execFileMock.mockClear()
+				execFileMock.mockResolvedValue({stdout: 'ok', stderr: ''})
+
+				const result = await trySign(`C:/test/file${ext}`)
+				expect(result).toBe(true)
+				expect(execFileMock).toHaveBeenCalled()
+			}
+		})
 	})
 })
