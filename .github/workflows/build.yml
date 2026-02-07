@@ -26,6 +26,8 @@ jobs:
           echo '```' >> $env:GITHUB_STEP_SUMMARY
   test-signing:
     runs-on: windows-latest
+    # Skip for Dependabot PRs - secrets aren't available for security reasons
+    if: github.actor != 'dependabot[bot]'
     steps:
       - uses: actions/checkout@v5
       - uses: ./
