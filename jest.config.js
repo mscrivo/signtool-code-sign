@@ -11,5 +11,8 @@ module.exports = {
 	transform: {
 		'^.+\\.ts$': 'ts-jest'
 	},
+	moduleNameMapper: {
+		'^@actions/core$': '<rootDir>/__mocks__/@actions/core.js'
+	},
 	verbose: true
 }
