@@ -1,17 +1,14 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "outDir": "./lib",
-    "rootDir": "./src",
-    "strict": true,
-    "noImplicitAny": true,
-    "esModuleInterop": true,
-    "useUnknownInCatchVariables": false,
-  },
-  "exclude": [
-    "node_modules",
-    "**/*.test.ts"
-  ]
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"outDir": "./lib",
+		"rootDir": "./src",
+		"strict": true,
+		"noImplicitAny": true,
+		"esModuleInterop": true,
+		"useUnknownInCatchVariables": false
+	},
+	"exclude": ["node_modules", "**/*.test.ts"]
 }
