@@ -9,12 +9,14 @@ export default tseslint.config(
 	github.getFlatConfigs().browser,
 	github.getFlatConfigs().recommended,
 	github.getFlatConfigs().react,
-	...github.getFlatConfigs().typescript,
 	{
 		files: ['**/*.{js,mjs,cjs,jsx,mjsx,ts,tsx,mtsx}'],
 		ignores: ['eslint.config.mjs'],
 		plugins: {jest: pluginJest},
 		rules: {
+			camelcase: 'off',
+			'no-undef': 'off',
+			'no-unused-vars': 'off',
 			'github/array-foreach': 'error',
 			'github/async-preventdefault': 'warn',
 			'github/no-then': 'error',

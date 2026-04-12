@@ -65,19 +65,27 @@ steps:
 
 ## Publishing a New Version
 
+This repository uses [mise](https://mise.jdx.dev/) to manage local tool versions (`node` and `pnpm`).
+
+Before running commands locally, install tools from `.mise.toml`:
+
+```bash
+mise install
+```
+
 To publish a new version of this action:
 
 1. **Update the code** and ensure all tests pass:
 
    ```bash
-   npm test
-   npm run build
+   pnpm test
+   pnpm run build
    ```
 
 2. **Package the action** for distribution:
 
    ```bash
-   npm run package
+   pnpm run package
    ```
 
    This compiles the TypeScript code and bundles all dependencies into the `dist/` folder that GitHub Actions will use.
@@ -112,7 +120,7 @@ To publish a new version of this action:
    - Add release notes describing the changes
    - Publish the release
 
-**Note**: Always run `npm run package` before creating a new release, as this ensures the `dist/` folder contains the latest compiled code that GitHub Actions will execute.
+**Note**: Always run `pnpm run package` before creating a new release, as this ensures the `dist/` folder contains the latest compiled code that GitHub Actions will execute.
 
 ## License
 

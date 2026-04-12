@@ -5,6 +5,7 @@
 		"moduleResolution": "bundler",
 		"outDir": "./lib",
 		"rootDir": "./src",
+		"types": ["node", "jest"],
 		"strict": true,
 		"noImplicitAny": true,
 		"esModuleInterop": true,

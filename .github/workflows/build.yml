@@ -1,10 +1,10 @@
-name: 'build-test'
+name: "build-test"
 on:
   pull_request:
   push:
     branches:
       - main
-      - 'releases/*'
+      - "releases/*"
 
 permissions:
   contents: read
@@ -13,29 +13,30 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v5
-      - run: npm install
-      - run: npm run build && npm run format && npm run lint && npm run package
-      - run: npm test -- --coverage --coverageReporters=text-summary
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build && pnpm run format && pnpm run lint && pnpm run package
+      - run: pnpm test -- --coverage --coverageReporters=text-summary
       - name: Add coverage to summary
         if: always()
         run: |
           echo "## Test Coverage" >> $env:GITHUB_STEP_SUMMARY
           echo '```' >> $env:GITHUB_STEP_SUMMARY
-          npm test -- --coverage --coverageReporters=text-summary 2>&1 | Select-String -Pattern "Statements|Branches|Functions|Lines|All files" >> $env:GITHUB_STEP_SUMMARY
+          pnpm test -- --coverage --coverageReporters=text-summary 2>&1 | Select-String -Pattern "Statements|Branches|Functions|Lines|All files" >> $env:GITHUB_STEP_SUMMARY
           echo '```' >> $env:GITHUB_STEP_SUMMARY
   test-signing:
     runs-on: windows-latest
     # Skip for Dependabot PRs - secrets aren't available for security reasons
     if: github.actor != 'dependabot[bot]'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: ./
         with:
-          certificate: '${{ secrets.CS_CERT_BASE64 }}'
-          cert-password: '${{ secrets.CS_CERT_PASSWORD }}'
-          cert-sha1: '${{ secrets.CS_CERT_HASH }}'
-          cert-description: 'Test'
-          folder: '__tests__/dll'
+          certificate: "${{ secrets.CS_CERT_BASE64 }}"
+          cert-password: "${{ secrets.CS_CERT_PASSWORD }}"
+          cert-sha1: "${{ secrets.CS_CERT_HASH }}"
+          cert-description: "Test"
+          folder: "__tests__/dll"
           recursive: true
-          timestamp-server: 'http://timestamp.digicert.com'
+          timestamp-server: "http://timestamp.digicert.com"
