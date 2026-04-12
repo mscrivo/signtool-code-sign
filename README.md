@@ -1,11 +1,11 @@
-# Windows Code Signing Github Action
+# Windows Code Signing GitHub Action
 
 [![build-test](https://github.com/mscrivo/signtool-code-sign/actions/workflows/build.yml/badge.svg)](https://github.com/mscrivo/signtool-code-sign/actions/workflows/build.yml)
 
 Forked from: <https://github.com/GabrielAcostaEngler/signtool-code-sign> but modernized and with updated dependencies.
 
 This action will code sign files from the given folder, this can be done recursively if needed.  
-The action uses a base64 encoded PFX certificate to sign files by adding the certificate to the store and then use `signtool.exe` to do the code signing.
+The action uses a base64 encoded PFX certificate to sign files by adding the certificate to the store and then uses `signtool.exe` to do the code signing.
 
 All inputs regarding the Certificate except `description` should be added via repository/organization secrets.
 
@@ -45,22 +45,22 @@ Thanks to [Dirk Lemstra](https://github.com/dlemstra/code-sign-action) and [Gabr
 ## `timestamp-server`
 
 **Description** - Url of the timestamp server.  
-**Default** - '<http://timestamp.verisign.com/scripts/timstamp.dll>'
+**Default** - '<http://timestamp.verisign.com/scripts/timestamp.dll>'
 
 ## Usage
 
 ```yaml
 runs-on: windows-latest
 steps:
-  uses: mscrivo/signtool-code-sign@v1
-  with:
-    certificate: '${{ secrets.CERTIFICATE }}'
-    cert-password: '${{ secrets.PASSWORD }}'
-    cert-sha1: '${{ secrets.CERTHASH }}'
-    cert-description: 'foo'
-    folder: 'path/to/folder'
-    recursive: true
-    timestamp-server: 'http://timestamp.digicert.com'
+   - uses: mscrivo/signtool-code-sign@v1
+      with:
+         certificate: '${{ secrets.CERTIFICATE }}'
+         cert-password: '${{ secrets.PASSWORD }}'
+         cert-sha1: '${{ secrets.CERTHASH }}'
+         cert-description: 'foo'
+         folder: 'path/to/folder'
+         recursive: true
+         timestamp-server: 'http://timestamp.digicert.com'
 ```
 
 ## Publishing a New Version
