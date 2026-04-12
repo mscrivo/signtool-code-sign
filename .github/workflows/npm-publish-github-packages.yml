@@ -51,10 +51,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Configure npm auth for GitHub Packages
         run: |
-          cp .npmrc ~/.npmrc
-          echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" >> ~/.npmrc
+          npm config set @mscrivo:registry https://npm.pkg.github.com/ --location=user
+          npm config set //npm.pkg.github.com/:_authToken "${NODE_AUTH_TOKEN}" --location=user
+          npm config set always-auth true --location=user
         env:
           NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
-      - run: pnpm publish --no-git-checks
+      - run: NPM_CONFIG_USERCONFIG="$HOME/.npmrc" pnpm publish --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
