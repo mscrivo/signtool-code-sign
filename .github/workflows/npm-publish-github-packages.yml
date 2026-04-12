@@ -39,6 +39,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: jdx/mise-action@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://npm.pkg.github.com/
+          scope: "@mscrivo"
       - name: Get pnpm store path
         run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
       - name: Cache pnpm store
@@ -49,13 +54,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
       - run: pnpm install --frozen-lockfile
-      - name: Configure npm auth for GitHub Packages
-        run: |
-          npm config set @mscrivo:registry https://npm.pkg.github.com/ --location=user
-          npm config set //npm.pkg.github.com/:_authToken "${NODE_AUTH_TOKEN}" --location=user
-          npm config set always-auth true --location=user
-        env:
-          NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
-      - run: NPM_CONFIG_USERCONFIG="$HOME/.npmrc" pnpm publish --no-git-checks
+      - run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
