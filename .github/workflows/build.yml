@@ -17,13 +17,13 @@ jobs:
       - uses: jdx/mise-action@v4
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build && pnpm run format && pnpm run lint && pnpm run package
-      - run: pnpm test -- --coverage --coverageReporters=text-summary
+      - run: pnpm test --coverage --coverageReporters=text-summary
       - name: Add coverage to summary
         if: always()
         run: |
           echo "## Test Coverage" >> $env:GITHUB_STEP_SUMMARY
           echo '```' >> $env:GITHUB_STEP_SUMMARY
-          pnpm test -- --coverage --coverageReporters=text-summary 2>&1 | Select-String -Pattern "Statements|Branches|Functions|Lines|All files" >> $env:GITHUB_STEP_SUMMARY
+          pnpm test --coverage --coverageReporters=text-summary 2>&1 | Select-String -Pattern "Statements|Branches|Functions|Lines|All files" >> $env:GITHUB_STEP_SUMMARY
           echo '```' >> $env:GITHUB_STEP_SUMMARY
   test-signing:
     runs-on: windows-latest
