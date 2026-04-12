@@ -29,14 +29,79 @@ jobs:
             ${{ runner.os }}-pnpm-store-
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build && pnpm run format && pnpm run lint && pnpm run package
-      - run: pnpm test --coverage --coverageReporters=text-summary
+      - run: pnpm test --coverage --coverageReporters=text-summary --coverageReporters=json-summary --coverageReporters=html
       - name: Add coverage to summary
         if: always()
+        shell: pwsh
         run: |
-          echo "## Test Coverage" >> $env:GITHUB_STEP_SUMMARY
-          echo '```' >> $env:GITHUB_STEP_SUMMARY
-          pnpm test --coverage --coverageReporters=text-summary 2>&1 | Select-String -Pattern "Statements|Branches|Functions|Lines|All files" >> $env:GITHUB_STEP_SUMMARY
-          echo '```' >> $env:GITHUB_STEP_SUMMARY
+          $summaryPath = "coverage/coverage-summary.json"
+
+          if (-not (Test-Path $summaryPath)) {
+            "## Test Coverage" >> $env:GITHUB_STEP_SUMMARY
+            "Coverage summary file was not generated." >> $env:GITHUB_STEP_SUMMARY
+            exit 0
+          }
+
+          $coverage = Get-Content $summaryPath -Raw | ConvertFrom-Json
+          $total = $coverage.total
+
+          function Get-CoverageColor([double]$pct) {
+            if ($pct -ge 90) { return "#137333" }
+            if ($pct -ge 75) { return "#9a6700" }
+            return "#b42318"
+          }
+
+          function Get-CoverageBadge([double]$pct) {
+            if ($pct -ge 90) { return "Excellent" }
+            if ($pct -ge 75) { return "Good" }
+            return "Needs Attention"
+          }
+
+          $statementsPct = [math]::Round([double]$total.statements.pct, 2)
+          $branchesPct = [math]::Round([double]$total.branches.pct, 2)
+          $functionsPct = [math]::Round([double]$total.functions.pct, 2)
+          $linesPct = [math]::Round([double]$total.lines.pct, 2)
+
+          @"
+          ## Test Coverage
+          <table>
+            <thead>
+              <tr>
+                <th align="left">Metric</th>
+                <th align="right">Coverage</th>
+                <th align="right">Covered / Total</th>
+                <th align="left">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Statements</td>
+                <td align="right"><strong>$statementsPct%</strong></td>
+                <td align="right">$($total.statements.covered) / $($total.statements.total)</td>
+                <td><span style="color: $(Get-CoverageColor $statementsPct)">$(Get-CoverageBadge $statementsPct)</span></td>
+              </tr>
+              <tr>
+                <td>Branches</td>
+                <td align="right"><strong>$branchesPct%</strong></td>
+                <td align="right">$($total.branches.covered) / $($total.branches.total)</td>
+                <td><span style="color: $(Get-CoverageColor $branchesPct)">$(Get-CoverageBadge $branchesPct)</span></td>
+              </tr>
+              <tr>
+                <td>Functions</td>
+                <td align="right"><strong>$functionsPct%</strong></td>
+                <td align="right">$($total.functions.covered) / $($total.functions.total)</td>
+                <td><span style="color: $(Get-CoverageColor $functionsPct)">$(Get-CoverageBadge $functionsPct)</span></td>
+              </tr>
+              <tr>
+                <td>Lines</td>
+                <td align="right"><strong>$linesPct%</strong></td>
+                <td align="right">$($total.lines.covered) / $($total.lines.total)</td>
+                <td><span style="color: $(Get-CoverageColor $linesPct)">$(Get-CoverageBadge $linesPct)</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <p><em>Detailed HTML report generated at coverage/lcov-report/index.html in the workflow workspace.</em></p>
+          "@ >> $env:GITHUB_STEP_SUMMARY
   test-signing:
     runs-on: windows-latest
     # Skip for Dependabot PRs - secrets aren't available for security reasons
