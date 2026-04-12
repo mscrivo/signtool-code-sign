@@ -1,6 +1,6 @@
 # Windows Code Signing GitHub Action
 
-[![build-test](https://github.com/mscrivo/signtool-code-sign/actions/workflows/build.yml/badge.svg)](https://github.com/mscrivo/signtool-code-sign/actions/workflows/build.yml)
+[![build-test](https://github.com/mscrivo/signtool-code-sign/actions/workflows/build.yml/badge.svg)](https://github.com/mscrivo/signtool-code-sign/actions/workflows/build.yml) [![Node.js Package](https://github.com/mscrivo/signtool-code-sign/actions/workflows/npm-publish-github-packages.yml/badge.svg)](https://github.com/mscrivo/signtool-code-sign/actions/workflows/npm-publish-github-packages.yml)
 
 Forked from: <https://github.com/GabrielAcostaEngler/signtool-code-sign> but modernized and with updated dependencies.
 
