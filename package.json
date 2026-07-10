@@ -40,6 +40,7 @@
 		"@types/jest": "^30.0.0",
 		"@types/node": "^25.6.0",
 		"@typescript-eslint/parser": "^8.58.1",
+		"@typescript/native": "npm:typescript@^7.0.2",
 		"esbuild": "^0.28.0",
 		"eslint": "^10.6.0",
 		"eslint-plugin-github": "^6.1.1",
@@ -49,7 +50,7 @@
 		"js-yaml": "^5.0.0",
 		"prettier": "^3.8.2",
 		"ts-jest": "^29.4.9",
-		"typescript": "^6.0.2",
+		"typescript": "npm:@typescript/typescript6@^6.0.2",
 		"typescript-eslint": "^8.58.1"
 	}
 }
