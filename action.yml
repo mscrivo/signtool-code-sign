@@ -26,7 +26,7 @@ inputs:
     required: false
   timestamp-server:
     description: "URL of the timestamp server used for the signing"
-    default: "http://timestamp.verisign.com/scripts/timestamp.dll"
+    default: "http://timestamp.digicert.com"
     required: false
 runs:
   using: "node20"

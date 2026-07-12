@@ -45,7 +45,7 @@ Thanks to [Dirk Lemstra](https://github.com/dlemstra/code-sign-action) and [Gabr
 ## `timestamp-server`
 
 **Description** - Url of the timestamp server.  
-**Default** - '<http://timestamp.verisign.com/scripts/timestamp.dll>'
+**Default** - '<http://timestamp.digicert.com>'
 
 ## Usage
 

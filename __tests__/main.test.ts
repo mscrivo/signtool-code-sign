@@ -1,4 +1,4 @@
-import {error, setFailed} from '@actions/core'
+import {error, info, setFailed} from '@actions/core'
 
 // Global test inputs object
 const inputs: Record<string, string> = {}
@@ -8,13 +8,16 @@ jest.mock('@actions/core', () => ({
 	getInput: (n: string) => inputs[n] || '',
 	error: jest.fn(),
 	info: jest.fn(),
-	setFailed: jest.fn()
+	setFailed: jest.fn(),
+	setSecret: jest.fn(),
+	warning: jest.fn()
 }))
 
 // Mock fs.promises methods we interact with
 const writeFileMock = jest.fn()
 const readdirMock = jest.fn()
 const statMock = jest.fn()
+const rmMock = jest.fn()
 jest.mock('fs', () => {
 	const actual = jest.requireActual('fs')
 	return {
@@ -23,7 +26,8 @@ jest.mock('fs', () => {
 			...actual.promises,
 			writeFile: writeFileMock,
 			readdir: readdirMock,
-			stat: statMock
+			stat: statMock,
+			rm: rmMock
 		}
 	}
 })
@@ -59,13 +63,15 @@ import {
 	getFiles,
 	signFiles,
 	run,
-	setExecAsync,
 	setSigntoolPath,
 	setSigntoolInfo,
 	findSigntool,
 	resetSigntoolCache,
 	addCertToStore
 } from '../src/main'
+
+// Valid 40 character hex thumbprint for tests
+const testSha1 = 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0'
 
 function setInputs(over: Record<string, string>): void {
 	// Clear existing inputs
@@ -76,7 +82,7 @@ function setInputs(over: Record<string, string>): void {
 		recursive: 'false',
 		certificate: 'dGVzdA==',
 		'cert-password': 'pw',
-		'cert-sha1': 'sha1',
+		'cert-sha1': testSha1,
 		'timestamp-server': 'http://ts',
 		'cert-description': 'Desc',
 		...over
@@ -94,8 +100,8 @@ describe('main minimal (mocked core)', () => {
 		// Set up execFile mock to succeed by default
 		execFileMock.mockResolvedValue({stdout: 'verified', stderr: ''})
 
-		// Set up a default execAsync mock (can be overridden in individual tests)
-		setExecAsync(async () => ({stdout: 'ok', stderr: ''}))
+		// Cert file removal succeeds by default
+		rmMock.mockResolvedValue(undefined)
 
 		// Set a mock signtool path to avoid filesystem operations during tests
 		setSigntoolPath('C:/MockedSigntool/signtool.exe')
@@ -147,6 +153,33 @@ describe('main minimal (mocked core)', () => {
 		expect(validateInputs()).toBe(false)
 		expect(err.mock.calls.flat()).toContain(
 			'cert-sha1 input must have a value.'
+		)
+	})
+
+	it('validateInputs failure malformed sha1', async () => {
+		setInputs({'cert-sha1': 'not-a-thumbprint'})
+		const err = error as jest.Mock
+		expect(validateInputs()).toBe(false)
+		expect(err.mock.calls.flat()).toContain(
+			'cert-sha1 input must be a 40 character hex string (certificate thumbprint).'
+		)
+	})
+
+	it('validateInputs failure non-base64 certificate', async () => {
+		setInputs({certificate: '$$$$'})
+		const err = error as jest.Mock
+		expect(validateInputs()).toBe(false)
+		expect(err.mock.calls.flat()).toContain(
+			'certificate input must be valid base64-encoded PFX data.'
+		)
+	})
+
+	it('validateInputs failure non-http timestamp server', async () => {
+		setInputs({'timestamp-server': 'ftp://ts.example.com'})
+		const err = error as jest.Mock
+		expect(validateInputs()).toBe(false)
+		expect(err.mock.calls.flat()).toContain(
+			'timestamp-server input must be an http(s) URL.'
 		)
 	})
 
@@ -254,7 +287,7 @@ describe('main minimal (mocked core)', () => {
 		expect(signingCall?.args).not.toContain('/fd')
 	})
 
-	it('getFiles yields supported and .nupkg recursively', async () => {
+	it('getFiles yields only signable files recursively', async () => {
 		setInputs({})
 		readdirMock.mockImplementation((dir: string) => {
 			if (dir === 'folder') return ['a.dll', 'b.txt', 'sub', 'pkg.nupkg']
@@ -273,11 +306,8 @@ describe('main minimal (mocked core)', () => {
 		})
 		const collected: string[] = []
 		for await (const f of getFiles('folder', true)) collected.push(f)
-		expect(collected).toEqual([
-			'folder/a.dll',
-			'folder/sub/inner.exe',
-			'folder/pkg.nupkg'
-		])
+		// .nupkg is not signable by signtool and must not be yielded
+		expect(collected).toEqual(['folder/a.dll', 'folder/sub/inner.exe'])
 	})
 
 	it('signFiles invokes trySign for each file from getFiles', async () => {
@@ -343,15 +373,23 @@ describe('main minimal (mocked core)', () => {
 		}))
 		// writeFile ok (createCert success)
 		writeFileMock.mockResolvedValue(undefined)
-		const execCalls: string[] = []
-		setExecAsync(async (cmd: string) => {
-			if (cmd.startsWith('certutil')) throw new Error('fail')
-			execCalls.push(cmd)
+		const execFileCalls: Array<{tool: string; args: string[]}> = []
+		execFileMock.mockImplementation(async (tool: string, args: string[]) => {
+			execFileCalls.push({tool, args})
+			if (tool === 'certutil' && args.includes('-importpfx')) {
+				const err = new Error('fail') as Error & {
+					stdout: string
+					stderr: string
+				}
+				err.stdout = ''
+				err.stderr = 'fail'
+				throw err
+			}
 			return {stdout: 'ok', stderr: ''}
 		})
 		await run()
 		// Signing should not have occurred
-		expect(execCalls.some(c => c.includes('"sign"'))).toBe(false)
+		expect(execFileCalls.some(c => c.args.includes('sign'))).toBe(false)
 	})
 
 	it('run fails when signing fails', async () => {
@@ -404,8 +442,8 @@ describe('main minimal (mocked core)', () => {
 	it('run fails when addCertToStore fails with helpful message', async () => {
 		setInputs({})
 		writeFileMock.mockResolvedValue(undefined)
-		setExecAsync(async (cmd: string) => {
-			if (cmd.startsWith('certutil')) {
+		execFileMock.mockImplementation(async (tool: string, args: string[]) => {
+			if (tool === 'certutil' && args.includes('-importpfx')) {
 				const err = new Error('import failed') as Error & {
 					stdout: string
 					stderr: string
@@ -421,6 +459,32 @@ describe('main minimal (mocked core)', () => {
 		expect(sf.mock.calls.flat().join(' ')).toContain(
 			'Could not import certificate to store'
 		)
+	})
+
+	it('run cleans up cert store and temp file after signing', async () => {
+		setInputs({recursive: 'true'})
+		readdirMock.mockResolvedValue(['a.dll'])
+		statMock.mockImplementation(() => ({
+			isFile: () => true,
+			isDirectory: () => false
+		}))
+		writeFileMock.mockResolvedValue(undefined)
+
+		const execFileCalls: Array<{tool: string; args: string[]}> = []
+		execFileMock.mockImplementation(async (tool: string, args: string[]) => {
+			execFileCalls.push({tool, args})
+			return {stdout: 'ok', stderr: ''}
+		})
+
+		await run()
+
+		// Certificate removed from store and temporary PFX file deleted
+		expect(
+			execFileCalls.some(
+				c => c.tool === 'certutil' && c.args.includes('-delstore')
+			)
+		).toBe(true)
+		expect(rmMock).toHaveBeenCalled()
 	})
 
 	describe('findSigntool', () => {
@@ -487,15 +551,34 @@ describe('main minimal (mocked core)', () => {
 	})
 
 	describe('addCertToStore', () => {
-		it('successfully adds certificate to store', async () => {
-			setInputs({})
-			setExecAsync(async () => ({
-				stdout: 'CertUtil: -importpfx command completed successfully.',
-				stderr: ''
-			}))
+		it('successfully adds certificate to store without shell or password logging', async () => {
+			setInputs({'cert-password': 'hunter2'})
+			const execFileCalls: Array<{tool: string; args: string[]}> = []
+			execFileMock.mockImplementation(async (tool: string, args: string[]) => {
+				execFileCalls.push({tool, args})
+				return {
+					stdout: 'CertUtil: -importpfx command completed successfully.',
+					stderr: ''
+				}
+			})
 
 			const result = await addCertToStore()
 			expect(result).toBe(true)
+
+			// certutil is invoked directly (no shell) with the password as an argument
+			const certutilCall = execFileCalls.find(c => c.tool === 'certutil')
+			expect(certutilCall).toBeDefined()
+			expect(certutilCall?.args).toEqual([
+				'-f',
+				'-p',
+				'hunter2',
+				'-importpfx',
+				expect.stringContaining('.pfx')
+			])
+
+			// The password must never appear in log output
+			const logged = (info as jest.Mock).mock.calls.flat().join('\n')
+			expect(logged).not.toContain('hunter2')
 		})
 	})
 

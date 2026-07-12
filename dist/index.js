@@ -18754,13 +18754,13 @@ var require_undici = __commonJS({
 var main_exports = {};
 __export(main_exports, {
   addCertToStore: () => addCertToStore,
+  cleanup: () => cleanup,
   createCert: () => createCert,
   default: () => main_default,
   findSigntool: () => findSigntool,
   getFiles: () => getFiles,
   resetSigntoolCache: () => resetSigntoolCache,
   run: () => run,
-  setExecAsync: () => setExecAsync,
   setSigntoolInfo: () => setSigntoolInfo,
   setSigntoolPath: () => setSigntoolPath,
   signFiles: () => signFiles,
@@ -19205,6 +19205,9 @@ var ExitCode;
   ExitCode2[ExitCode2["Success"] = 0] = "Success";
   ExitCode2[ExitCode2["Failure"] = 1] = "Failure";
 })(ExitCode || (ExitCode = {}));
+function setSecret(secret) {
+  issueCommand("add-mask", {}, secret);
+}
 function getInput(name, options) {
   const val = process.env[`INPUT_${name.replace(/ /g, "_").toUpperCase()}`] || "";
   if (options && options.required && !val) {
@@ -19222,22 +19225,28 @@ function setFailed(message) {
 function error(message, properties = {}) {
   issueCommand("error", toCommandProperties(properties), message instanceof Error ? message.toString() : message);
 }
+function warning(message, properties = {}) {
+  issueCommand("warning", toCommandProperties(properties), message instanceof Error ? message.toString() : message);
+}
 function info(message) {
   process.stdout.write(message + os3.EOL);
 }
 
 // lib/main.js
 var import_child_process = require("child_process");
+var import_crypto = require("crypto");
 var import_fs2 = require("fs");
+var import_os3 = require("os");
 var import_path = __toESM(require("path"));
-var import_process = require("process");
 var import_util = __toESM(require("util"));
-var execAsync = import_util.default.promisify(import_child_process.exec);
 var execFileAsync = import_util.default.promisify(import_child_process.execFile);
-function setExecAsync(fn) {
-  execAsync = fn;
+var certPath = null;
+function getCertPath() {
+  if (!certPath) {
+    certPath = import_path.default.join((0, import_os3.tmpdir)(), `codesign-${(0, import_crypto.randomUUID)()}.pfx`);
+  }
+  return certPath;
 }
-var certPath = `${import_process.env["TEMP"]}\\certificate.pfx`;
 async function findSigntool() {
   const sdkBasePath = "C:/Program Files (x86)/Windows Kits/10/bin";
   try {
@@ -19307,8 +19316,6 @@ function setSigntoolPath(toolPath) {
 function setSigntoolInfo(toolInfo) {
   signtoolInfo = toolInfo;
 }
-var coreBase64cert = getInput("certificate");
-var corePassword = getInput("cert-password");
 var supportedFileExt = [
   ".dll",
   ".exe",
@@ -19330,6 +19337,7 @@ function validateInputs() {
   const base64cert = getInput("certificate");
   const password = getInput("cert-password");
   const sha1 = getInput("cert-sha1");
+  const timestampServer = getInput("timestamp-server");
   if (folder.length === 0) {
     error("folder input must have a value.");
     return false;
@@ -19338,12 +19346,24 @@ function validateInputs() {
     error("certificate input must have a value.");
     return false;
   }
+  if (Buffer.from(base64cert, "base64").length === 0) {
+    error("certificate input must be valid base64-encoded PFX data.");
+    return false;
+  }
   if (password.length === 0) {
     error("cert-password input must have a value.");
     return false;
   }
   if (sha1.length === 0) {
     error("cert-sha1 input must have a value.");
+    return false;
+  }
+  if (!/^[0-9a-fA-F]{40}$/.test(sha1)) {
+    error("cert-sha1 input must be a 40 character hex string (certificate thumbprint).");
+    return false;
+  }
+  if (timestampServer.length > 0 && !/^https?:\/\//.test(timestampServer)) {
+    error("timestamp-server input must be an http(s) URL.");
     return false;
   }
   return true;
@@ -19356,16 +19376,25 @@ function wait(seconds) {
   return new Promise((resolve) => setTimeout(resolve, seconds * 1e3));
 }
 async function createCert() {
-  const cert = Buffer.from(coreBase64cert, "base64");
-  info(`creating PFX Certificate at path: ${certPath}`);
-  await import_fs2.promises.writeFile(certPath, cert);
+  const base64cert = getInput("certificate");
+  const cert = Buffer.from(base64cert, "base64");
+  const dest = getCertPath();
+  info(`creating PFX Certificate at path: ${dest}`);
+  await import_fs2.promises.writeFile(dest, cert);
   return true;
 }
 async function addCertToStore() {
+  const password = getInput("cert-password");
+  const dest = getCertPath();
   try {
-    const command = `certutil -f -p ${corePassword} -importpfx ${certPath}`;
-    info(`adding to store using "${command}" command`);
-    const { stdout } = await execAsync(command);
+    info(`adding to store using "certutil -f -p *** -importpfx ${dest}" command`);
+    const { stdout } = await execFileAsync("certutil", [
+      "-f",
+      "-p",
+      password,
+      "-importpfx",
+      dest
+    ]);
     info(stdout);
     return true;
   } catch (error2) {
@@ -19374,8 +19403,32 @@ async function addCertToStore() {
     return false;
   }
 }
+async function cleanup() {
+  const sha1 = getInput("cert-sha1");
+  if (sha1.length > 0) {
+    try {
+      await execFileAsync("certutil", ["-delstore", "My", sha1]);
+      info("removed certificate from store");
+    } catch {
+      warning("failed to remove certificate from store");
+    }
+  }
+  if (certPath) {
+    try {
+      await import_fs2.promises.rm(certPath, { force: true });
+      certPath = null;
+      info("deleted temporary certificate file");
+    } catch {
+      warning("failed to delete temporary certificate file");
+    }
+  }
+}
 async function trySign(file) {
   const ext = import_path.default.extname(file);
+  if (!supportedFileExt.includes(ext)) {
+    warning(`unsupported file extension ${ext}, skipping: ${file}`);
+    return false;
+  }
   const timestampServer = getInput("timestamp-server");
   const sha1 = getInput("cert-sha1");
   const certDesc = getInput("cert-description");
@@ -19383,32 +19436,26 @@ async function trySign(file) {
   const signtool = toolInfo.path;
   for (let i = 0; i < 5; i++) {
     await wait(i);
-    if (supportedFileExt.includes(ext)) {
-      try {
-        const signArgs = ["sign", "/sm", "/t", timestampServer, "/sha1", sha1];
-        if (requiresFdFlag(toolInfo.version)) {
-          signArgs.push("/fd", "sha1");
-        }
-        if (certDesc !== "")
-          signArgs.push("/d", certDesc);
-        signArgs.push(file);
-        info(`signing file: ${file}
-Arguments: ${[signtool, ...signArgs].join(" ")}`);
-        const signCommandResult = await execFileAsync(signtool, signArgs);
-        info(signCommandResult.stdout);
-        const verifyCommand = `"${signtool}" verify /pa "${file}"`;
-        info(`verifying signing for file: ${file}
-Command: ${verifyCommand}`);
-        const verifyCommandResult = await execFileAsync(signtool, [
-          "verify",
-          "/pa",
-          file
-        ]);
-        info(verifyCommandResult.stdout);
-        return true;
-      } catch (error2) {
-        error(error2.stderr);
+    try {
+      const signArgs = ["sign", "/sm", "/t", timestampServer, "/sha1", sha1];
+      if (requiresFdFlag(toolInfo.version)) {
+        signArgs.push("/fd", "sha1");
       }
+      if (certDesc !== "")
+        signArgs.push("/d", certDesc);
+      signArgs.push(file);
+      info(`signing file: ${file}
+Arguments: ${[signtool, ...signArgs].join(" ")}`);
+      const signCommandResult = await execFileAsync(signtool, signArgs);
+      info(signCommandResult.stdout);
+      const verifyArgs = ["verify", "/pa", file];
+      info(`verifying signing for file: ${file}
+Arguments: ${[signtool, ...verifyArgs].join(" ")}`);
+      const verifyCommandResult = await execFileAsync(signtool, verifyArgs);
+      info(verifyCommandResult.stdout);
+      return true;
+    } catch (error2) {
+      error(error2.stderr);
     }
   }
   return false;
@@ -19437,7 +19484,7 @@ async function* getFiles(folder, recursive) {
     const stat2 = await import_fs2.promises.stat(fullPath);
     if (stat2.isFile()) {
       const ext = import_path.default.extname(file);
-      if (supportedFileExt.includes(ext) || ext === ".nupkg")
+      if (supportedFileExt.includes(ext))
         yield fullPath;
     } else if (stat2.isDirectory() && recursive)
       yield* getFiles(fullPath, recursive);
@@ -19445,6 +19492,12 @@ async function* getFiles(folder, recursive) {
 }
 async function run() {
   try {
+    const password = getInput("cert-password");
+    if (password.length > 0)
+      setSecret(password);
+    const base64cert = getInput("certificate");
+    if (base64cert.length > 0)
+      setSecret(base64cert);
     if (!validateInputs()) {
       setFailed("Code signing failed: Invalid inputs");
       return;
@@ -19453,19 +19506,23 @@ async function run() {
       setFailed("Code signing failed: Could not create certificate file");
       return;
     }
-    if (!await addCertToStore()) {
-      setFailed(
-        // eslint-disable-next-line i18n-text/no-en
-        "Code signing failed: Could not import certificate to store. The certificate may be invalid, expired, or the password may be incorrect."
-      );
-      return;
-    }
-    const success = await signFiles();
-    if (!success) {
-      setFailed(
-        // eslint-disable-next-line i18n-text/no-en
-        "Code signing failed: One or more files could not be signed. Check the logs for details."
-      );
+    try {
+      if (!await addCertToStore()) {
+        setFailed(
+          // eslint-disable-next-line i18n-text/no-en
+          "Code signing failed: Could not import certificate to store. The certificate may be invalid, expired, or the password may be incorrect."
+        );
+        return;
+      }
+      const success = await signFiles();
+      if (!success) {
+        setFailed(
+          // eslint-disable-next-line i18n-text/no-en
+          "Code signing failed: One or more files could not be signed. Check the logs for details."
+        );
+      }
+    } finally {
+      await cleanup();
     }
   } catch (error2) {
     setFailed(`Code signing failed
@@ -19480,6 +19537,7 @@ var main_default = {
   wait,
   createCert,
   addCertToStore,
+  cleanup,
   trySign,
   signFiles,
   getFiles,
@@ -19488,12 +19546,12 @@ var main_default = {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   addCertToStore,
+  cleanup,
   createCert,
   findSigntool,
   getFiles,
   resetSigntoolCache,
   run,
-  setExecAsync,
   setSigntoolInfo,
   setSigntoolPath,
   signFiles,

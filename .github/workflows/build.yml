@@ -14,6 +14,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: jdx/mise-action@v4
       - name: Get pnpm store path
         shell: pwsh
@@ -108,6 +110,8 @@ jobs:
     if: github.actor != 'dependabot[bot]'
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: ./
         with:
           certificate: "${{ secrets.CS_CERT_BASE64 }}"

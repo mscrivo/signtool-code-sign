@@ -5,5 +5,7 @@ module.exports = {
 	getInput: jest.fn(),
 	error: jest.fn(),
 	info: jest.fn(),
-	setFailed: jest.fn()
+	setFailed: jest.fn(),
+	setSecret: jest.fn(),
+	warning: jest.fn()
 }
