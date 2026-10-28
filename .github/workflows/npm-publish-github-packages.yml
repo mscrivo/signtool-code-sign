@@ -44,7 +44,7 @@ jobs:
       - uses: jdx/mise-action@v5
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
           registry-url: https://npm.pkg.github.com/
           scope: "@mscrivo"
       - name: Get pnpm store path
