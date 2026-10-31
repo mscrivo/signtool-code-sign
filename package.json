@@ -10,7 +10,7 @@
 		"format-check": "prettier --check **/*.ts",
 		"lint": "eslint src/**/*.ts",
 		"lint-fix": "eslint src/**/*.ts --fix",
-		"package": "esbuild lib/main.js --bundle --platform=node --target=node20 --outfile=dist/index.js --sourcemap --legal-comments=linked",
+		"package": "esbuild lib/main.js --bundle --platform=node --target=node24 --outfile=dist/index.js --sourcemap --legal-comments=linked",
 		"test": "jest",
 		"all": "pnpm run build && pnpm run format && pnpm run lint && pnpm run package && pnpm test"
 	},
